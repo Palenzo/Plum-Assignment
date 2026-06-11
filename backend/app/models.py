@@ -61,6 +61,7 @@ class AuditEntry(BaseModel):
 class Decision(BaseModel):
     claim_id: str
     decision: Verdict
+    claim_amount: float = 0.0
     approved_amount: float = 0.0
     rejection_reasons: list[str] = Field(default_factory=list)
     rejected_items: list[str] = Field(default_factory=list)

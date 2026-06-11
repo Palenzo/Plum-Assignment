@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  /* Neutrals — pure white canvas; the brand color carries the warmth */
+  --color-bg: oklch(1 0 0);
+  --color-surface: oklch(0.985 0 0);
+  --color-ink: oklch(0.23 0.008 120);
+  --color-ink-muted: oklch(0.45 0.01 120);
+  --color-ink-faint: oklch(0.6 0.01 120);
+  --color-border: oklch(0.91 0.004 120);
+  --color-border-strong: oklch(0.84 0.005 120);
+
+  /* Brand — deep moss-olive */
+  --color-primary: oklch(0.48 0.097 118);
+  --color-primary-hover: oklch(0.43 0.097 118);
+  --color-primary-soft: oklch(0.96 0.02 118);
+  --color-primary-ink: oklch(0.99 0 0);
+  --color-accent: oklch(0.62 0.12 50);
+
+  /* Semantic verdict colors — always paired with an icon + label */
+  --color-ok: oklch(0.52 0.13 150);
+  --color-ok-bg: oklch(0.965 0.03 150);
+  --color-warn: oklch(0.58 0.1 75);
+  --color-warn-bg: oklch(0.965 0.04 75);
+  --color-bad: oklch(0.52 0.16 28);
+  --color-bad-bg: oklch(0.965 0.035 28);
+  --color-info: oklch(0.54 0.12 255);
+  --color-info-bg: oklch(0.965 0.03 255);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-plex), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  color: var(--color-ink);
+}
+
+.tnum { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+
+::selection { background: var(--color-primary-soft); }
+
+:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--color-accent) 70%, transparent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+.animate-rise { animation: rise 0.5s var(--ease-expo) both; }
+.animate-fade { animation: fade 0.4s var(--ease-expo) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

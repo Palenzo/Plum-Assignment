@@ -34,6 +34,7 @@ def adjudicate_and_store(db: Session, claim: ClaimInput) -> Decision:
         seen_signatures=repository.signatures(db), claim_id=claim_id,
     ) or adjudicate(claim, claim_id=claim_id)
 
+    decision.claim_amount = claim.claim_amount
     repository.save(db, claim, decision, signature)
     return decision
 
@@ -51,6 +52,7 @@ def adjudicate_upload(db: Session, *, member_id: str, member_name: str,
         document_types=set(doc_texts), seen_signatures=repository.signatures(db),
         claim_id=claim_id)
     if gate is not None:
+        gate.claim_amount = claim_amount
         stub = ClaimInput(member_id=member_id, member_name=member_name,
                           treatment_date=treatment_date, claim_amount=claim_amount)
         repository.save(db, stub, gate, signature)
@@ -63,5 +65,6 @@ def adjudicate_upload(db: Session, *, member_id: str, member_name: str,
         member_join_date=member_join_date, hospital=hospital,
         cashless_request=cashless_request, previous_claims_same_day=previous_claims_same_day)
     decision = adjudicate(claim, claim_id=claim_id)
+    decision.claim_amount = claim_amount
     repository.save(db, claim, decision, signature)
     return decision
