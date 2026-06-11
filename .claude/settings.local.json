@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(foreach \\($c in 'python','python3','py'\\) { $cmd = Get-Command $c -ErrorAction SilentlyContinue; if \\($cmd\\) { \"$c -> $\\($cmd.Source\\)\" } })",
+      "PowerShell(try { & python --version } catch { \"err: $_\" })"
+    ]
+  }
+}
