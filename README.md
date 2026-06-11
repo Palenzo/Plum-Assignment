@@ -41,7 +41,10 @@ Concretely:
 - 🔁 **Durable & cost-safe** — every claim runs as a Temporal workflow (retries,
   crash-safe), with cheap pre-checks and a rate limiter so the LLM budget is never
   blown.
-- 📊 **Explainable** — every decision shows the exact rules it checked, in order.
+- 📊 **Explainable** — every decision shows the exact rules it checked, plus an
+  optional plain-English summary that **cites the real policy clauses** (RAG).
+- 🛠️ **Admin & status** — an admin dashboard to edit policy limits/exclusions, and
+  a `/api/status` endpoint reporting which capabilities (AI, OCR, Temporal) are live.
 
 ## Architecture
 
@@ -125,7 +128,22 @@ Full write-up: [docs/decision-flow.md](docs/decision-flow.md).
 
 ## Getting started
 
-### Prerequisites
+### Run with Docker (one command)
+
+The fastest way — builds and runs the backend + frontend together:
+
+```powershell
+# Put your Groq key in a .env file next to docker-compose.yml:
+"GROQ_API_KEY=gsk_your_key_here" | Out-File -Encoding ascii .env
+docker compose up --build
+```
+
+App at <http://localhost:3000>, API at <http://localhost:8000/docs>. This runs in
+in-process mode; for the durable Temporal pipeline, see "Durable mode" below.
+
+### Run locally (without Docker)
+
+#### Prerequisites
 - **Python 3.12** and **Node 20+** (required)
 - A free **Groq API key** — <https://console.groq.com/keys> (for the AI features)
 - *Optional:* **Tesseract OCR** (for image/PDF upload) and the **Temporal CLI**
@@ -152,13 +170,24 @@ npm run dev
 App at <http://localhost:3000>.
 
 ### 3. (Optional) Durable mode with Temporal
+
+With Temporal running, every claim becomes a durable, retryable workflow you can
+watch in the Temporal UI. Without it, the app automatically falls back to the
+in-process path — same pipeline, just not crash-safe.
+
+**In Docker (recommended — one command):**
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.temporal.yml up --build
+```
+Brings up the app **plus** a Temporal server + a separate worker + the Temporal UI
+(<http://localhost:8233>). Submit a claim and watch `AdjudicateClaimWorkflow` run.
+
+**Locally (without Docker):**
 ```powershell
 temporal server start-dev --ui-port 8233          # terminal 1 — Temporal UI at :8233
 cd backend; .\.venv\Scripts\python.exe -m app.temporal.worker   # terminal 2 — the worker
 ```
-With these running, the backend routes every claim through a durable workflow you
-can watch in the Temporal UI. If they're not running, it automatically falls back
-to the in-process path.
+Then run the backend with `TEMPORAL_ENABLED=true`.
 
 ### Configuration (`backend/.env`)
 | Variable | Default | Purpose |

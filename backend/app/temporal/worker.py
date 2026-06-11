@@ -15,14 +15,29 @@ from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Worker
 
 from . import activities
+from ..db import init_db
 from .shared import TASK_QUEUE
 from .workflow import AdjudicateClaimWorkflow
 
 TEMPORAL_TARGET = os.getenv("TEMPORAL_TARGET", "localhost:7233")
 
 
+async def _connect() -> Client:
+    """Wait for the Temporal server to be ready (it boots after this process)."""
+    last_error: Exception | None = None
+    for attempt in range(30):
+        try:
+            return await Client.connect(TEMPORAL_TARGET, data_converter=pydantic_data_converter)
+        except RuntimeError as exc:
+            last_error = exc
+            print(f"Temporal not ready (attempt {attempt + 1}/30); retrying in 2s…")
+            await asyncio.sleep(2)
+    raise RuntimeError(f"could not reach Temporal at {TEMPORAL_TARGET}: {last_error}")
+
+
 async def main() -> None:
-    client = await Client.connect(TEMPORAL_TARGET, data_converter=pydantic_data_converter)
+    init_db()  # ensure the claims tables exist (the worker persists decisions)
+    client = await _connect()
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         worker = Worker(
             client,

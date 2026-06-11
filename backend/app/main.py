@@ -12,9 +12,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from . import repository
+from .config import settings
 from .db import get_db, init_db
 from .explain import Explanation, explain_decision
-from .ingestion import ocr_document
+from .ingestion import ocr_document, tesseract_available
 from .models import ClaimInput, Decision
 from .policy import load_policy, save_policy
 from .service import adjudicate_and_store, adjudicate_upload
@@ -62,6 +63,18 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/api/status")
+def status() -> dict:
+    """Live status — which capabilities are currently available."""
+    return {
+        "status": "ok",
+        "ai_available": bool(settings()["groq_api_key"]),
+        "ocr_available": tesseract_available(),
+        "temporal_enabled": TEMPORAL_ENABLED,
+        "model": settings()["groq_model"],
+    }
 
 
 @app.post("/api/claims/json", response_model=Decision)

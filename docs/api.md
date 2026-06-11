@@ -64,14 +64,30 @@ Form fields: `member_id`, `member_name`, `treatment_date`, `claim_amount`
 `bill` (optional). Returns **Decision** (200).
 
 ### `GET /api/claims`
-List all claims (newest first). Returns a compact array:
+List claims, newest first — **paginated** (default 10, never fetches everything).
+Query params: `limit` (1–50, default 10), `offset` (default 0), `status` (filter,
+e.g. `MANUAL_REVIEW`). Returns:
 ```jsonc
-[{ "claim_id": "...", "member_name": "...", "decision": "...",
-   "claim_amount": 1500, "approved_amount": 1350, "flags": [] }]
+{
+  "items": [{ "claim_id": "...", "member_name": "...", "decision": "...",
+              "claim_amount": 1500, "approved_amount": 1350, "flags": [] }],
+  "total": 42
+}
 ```
 
 ### `GET /api/claims/{claim_id}`
 Returns the full **Decision** for one claim. `404` if not found.
+
+### `GET /api/claims/{claim_id}/explain`
+A plain-English, citation-backed explanation of the decision (RAG: retrieves the
+relevant policy clauses, then has the LLM explain grounded in them). Falls back
+to the decision's notes + retrieved clauses if the LLM is unavailable.
+```jsonc
+{
+  "summary": "Your claim was declined because weight-loss treatments are excluded.",
+  "citations": ["Exclusion: Weight loss treatments are excluded and not covered."]
+}
+```
 
 ### `POST /api/claims/{claim_id}/review`
 The human-in-the-loop action: resolve a claim that's in `MANUAL_REVIEW`.
@@ -90,3 +106,10 @@ policy JSON. Returns the saved policy (200).
 
 ### `GET /health`
 Returns `{ "status": "ok" }`.
+
+### `GET /api/status`
+Live capability check — which features are currently available:
+```jsonc
+{ "status": "ok", "ai_available": true, "ocr_available": true,
+  "temporal_enabled": false, "model": "llama-3.3-70b-versatile" }
+```

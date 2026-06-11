@@ -8,7 +8,10 @@ from sqlalchemy import JSON, Date, DateTime, Float, Integer, String, create_engi
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./claims.db")
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# SQLite is shared between the API and the Temporal worker (separate processes);
+# a busy timeout lets a writer wait for a lock instead of failing immediately.
+_connect_args = {"check_same_thread": False, "timeout": 30} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 

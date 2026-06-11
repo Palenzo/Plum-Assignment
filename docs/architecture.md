@@ -49,6 +49,7 @@ flowchart TB
 | **Rule engine** | Pure Python | The 5-step deterministic pipeline. Decides the money and the hard rules. Fully auditable, 100% reproducible |
 | **AI review team** | Agno *team* (necessity + fraud agents) | Judges clinical appropriateness; can escalate to a human, never approve or change amounts |
 | **Rate limiter** | Token bucket + worker concurrency cap | Stops LLM overuse / 429s under load |
+| **Knowledge (RAG)** | Lexical retriever over policy + rules clauses | Grounds the plain-English decision explanations in the real policy text (with citations) |
 | **Storage** | SQLite (Postgres-ready) | Claims, extracted fields, decisions, human resolutions |
 
 ## Why AI never makes the final call
