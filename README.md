@@ -238,11 +238,24 @@ talks to its own origin — no CORS, and no backend URL baked into the build.
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m pytest -q     # full suite (live LLM/OCR tests skip without a key)
-.\.venv\Scripts\python.exe eval.py          # accuracy vs the 10 provided test cases
+.\.venv\Scripts\python.exe eval.py          # ENGINE accuracy vs the 10 provided test cases
+.\.venv\Scripts\python.exe eval_ai.py       # AI accuracy: OCR + LLM extraction vs ground truth
 ```
-`eval.py` reports **100% decision accuracy and 100% amount accuracy** against
-`test_cases.json`. The deterministic suite always runs; tests that need the LLM or
-Tesseract skip cleanly when those aren't available.
+
+Two complementary accuracy harnesses:
+
+- **`eval.py` — engine accuracy.** Runs all 10 provided test cases (structured
+  JSON) through the deterministic engine: **100% decision and 100% amount accuracy**
+  against `test_cases.json`.
+- **`eval_ai.py` — AI accuracy.** Runs the real **OCR + LLM extraction** over the
+  `test_documents/` PDFs and scores it against ground truth — per-field
+  (doctor registration, diagnosis, every bill line item) **and** the end-to-end
+  decision through the AI path. Reports field-extraction accuracy and decision
+  accuracy, stamped with the active provider/model. Needs an LLM key; documents
+  that hit a provider rate-limit are skipped cleanly, not failed.
+
+The deterministic suite always runs; tests that need the LLM or Tesseract skip
+cleanly when those aren't available.
 
 ## Admin dashboard
 
