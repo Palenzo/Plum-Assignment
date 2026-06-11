@@ -9,14 +9,14 @@ import io
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
-from app.config import settings
 from app.ingestion import tesseract_available
+from app.llm import llm_available
 
 from ._llm import skip_on_quota
 
 pytestmark = pytest.mark.skipif(
-    not (settings()["groq_api_key"] and tesseract_available()),
-    reason="needs GROQ_API_KEY and tesseract")
+    not (llm_available() and tesseract_available()),
+    reason="needs an LLM API key and tesseract")
 
 VERDICTS = {"APPROVED", "REJECTED", "PARTIAL", "MANUAL_REVIEW"}
 

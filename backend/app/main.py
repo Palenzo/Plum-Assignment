@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from . import repository
 from .config import settings
+from .llm import llm_available, model_name
 from .db import get_db, init_db
 from .explain import Explanation, explain_decision
 from .ingestion import ocr_document, tesseract_available
@@ -88,10 +89,11 @@ def status() -> dict:
     """Live status — which capabilities are currently available."""
     return {
         "status": "ok",
-        "ai_available": bool(settings()["groq_api_key"]),
+        "ai_available": llm_available(),
         "ocr_available": tesseract_available(),
         "temporal_enabled": TEMPORAL_ENABLED,
-        "model": settings()["groq_model"],
+        "provider": settings()["provider"],
+        "model": model_name(),
     }
 
 

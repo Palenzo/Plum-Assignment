@@ -12,7 +12,7 @@ import os
 
 from pydantic import BaseModel, Field, field_validator
 
-from .config import settings
+from .llm import llm_available
 from .models import ClaimInput, Decision
 
 _NECESSITY = (
@@ -89,19 +89,17 @@ def _summary(claim: ClaimInput) -> str:
 
 
 def _build_team():
-    cfg = settings()
-    if not cfg["groq_api_key"]:
-        raise RuntimeError("GROQ_API_KEY is not set — add it to backend/.env")
     from agno.agent import Agent
-    from agno.models.groq import Groq
     from agno.team import Team
 
-    model = Groq(id=cfg["groq_model"], api_key=cfg["groq_api_key"], temperature=0)
+    from .llm import build_model
+
+    model = build_model(0)
     necessity = Agent(name="NecessityReviewer", model=model, instructions=_NECESSITY)
     fraud = Agent(name="FraudReviewer", model=model, instructions=_FRAUD)
     # The leader delegates to members via tools (text mode); a parser_model
-    # then converts its synthesis into the schema — Groq forbids json-mode +
-    # tools in a single call, so the structured pass must be separate.
+    # then converts its synthesis into the schema. This keeps the structured
+    # pass separate from tool use, which some providers (e.g. Groq) require.
     return Team(members=[necessity, fraud], model=model, parser_model=model,
                 output_schema=ReviewAssessment, instructions=_LEADER)
 
@@ -119,7 +117,7 @@ def review_if_concerned(claim: ClaimInput, decision: Decision) -> Decision:
     decision because the AI is unavailable or disabled."""
     if os.getenv("AI_REVIEW_ENABLED", "true").lower() != "true":
         return decision
-    if decision.decision not in _ESCALATABLE or not settings()["groq_api_key"]:
+    if decision.decision not in _ESCALATABLE or not llm_available():
         return decision
     try:
         return apply_review(decision, assess(claim))

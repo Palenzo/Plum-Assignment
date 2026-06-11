@@ -5,13 +5,13 @@ from datetime import date
 
 import pytest
 
-from app.config import settings
+from app.llm import llm_available
 from app.models import ClaimInput, Prescription
 from app.review import assess
 
 from ._llm import skip_on_quota
 
-pytestmark = pytest.mark.skipif(not settings()["groq_api_key"], reason="GROQ_API_KEY not set")
+pytestmark = pytest.mark.skipif(not llm_available(), reason="no LLM API key set")
 
 
 def _claim(diagnosis: str, **presc) -> ClaimInput:

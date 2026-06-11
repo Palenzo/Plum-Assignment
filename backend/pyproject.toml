@@ -7,6 +7,7 @@ dependencies = [
     "pydantic>=2.6",
     "agno>=2.6",
     "groq>=0.11",
+    "openai>=1.0",
     "python-dotenv>=1.0",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",

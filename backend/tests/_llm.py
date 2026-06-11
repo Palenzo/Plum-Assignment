@@ -15,6 +15,6 @@ def skip_on_quota(fn):
         except Exception as exc:  # noqa: BLE001 - inspect message, re-raise if unrelated
             msg = str(exc).lower()
             if any(k in msg for k in ("rate_limit", "rate limit", "429", "quota")):
-                pytest.skip("Groq rate limit / daily token quota reached")
+                pytest.skip("LLM provider rate limit / quota reached")
             raise
     return wrapper

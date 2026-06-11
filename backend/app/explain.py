@@ -12,8 +12,8 @@ import os
 
 from pydantic import BaseModel, Field, field_validator
 
-from .config import settings
 from .knowledge import retrieve
+from .llm import llm_available
 from .models import Decision
 
 _INSTRUCTIONS = (
@@ -44,7 +44,7 @@ def _fallback(decision: Decision, clauses: list[str]) -> Explanation:
 
 def explain_decision(decision: Decision, *, agent=None) -> Explanation:
     clauses = retrieve(_query(decision), k=4)
-    if os.getenv("AI_EXPLAIN_ENABLED", "true").lower() != "true" or not settings()["groq_api_key"]:
+    if os.getenv("AI_EXPLAIN_ENABLED", "true").lower() != "true" or not llm_available():
         return _fallback(decision, clauses)
     try:
         agent = agent or _build_agent()
@@ -63,8 +63,6 @@ def explain_decision(decision: Decision, *, agent=None) -> Explanation:
 
 
 def _build_agent():
-    cfg = settings()
     from agno.agent import Agent
-    from agno.models.groq import Groq
-    return Agent(model=Groq(id=cfg["groq_model"], api_key=cfg["groq_api_key"], temperature=0),
-                 output_schema=Explanation, instructions=_INSTRUCTIONS)
+    from .llm import build_model
+    return Agent(model=build_model(0), output_schema=Explanation, instructions=_INSTRUCTIONS)

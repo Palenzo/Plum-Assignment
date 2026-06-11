@@ -10,7 +10,6 @@ from datetime import date
 
 from pydantic import BaseModel, Field, field_validator
 
-from .config import settings
 from .models import ClaimInput, Prescription
 
 _INSTRUCTIONS = (
@@ -61,14 +60,10 @@ def to_claim_input(doc: ExtractedDocument, *, member_id: str, member_name: str,
 
 
 def _build_agent():
-    cfg = settings()
-    if not cfg["groq_api_key"]:
-        raise RuntimeError("GROQ_API_KEY is not set — add it to backend/.env")
     from agno.agent import Agent
-    from agno.models.groq import Groq
-    return Agent(
-        model=Groq(id=cfg["groq_model"], api_key=cfg["groq_api_key"], temperature=0),
-        output_schema=ExtractedDocument, instructions=_INSTRUCTIONS)
+    from .llm import build_model
+    return Agent(model=build_model(0), output_schema=ExtractedDocument,
+                 instructions=_INSTRUCTIONS)
 
 
 def extract(ocr_text: str, *, agent=None) -> ExtractedDocument:

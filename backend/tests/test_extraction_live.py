@@ -7,13 +7,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.config import settings
 from app.extraction import extract
+from app.llm import llm_available
 
 from ._llm import skip_on_quota
 
-pytestmark = pytest.mark.skipif(
-    not settings()["groq_api_key"], reason="GROQ_API_KEY not set")
+pytestmark = pytest.mark.skipif(not llm_available(), reason="no LLM API key set")
 
 MESSY_DOCUMENT = """
 City Care Clinic, Bengaluru

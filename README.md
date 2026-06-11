@@ -129,7 +129,7 @@ Full write-up: [docs/decision-flow.md](docs/decision-flow.md).
 
 - **Frontend:** Next.js 16, React 19, TypeScript, Tailwind v4
 - **Backend:** Python, FastAPI, SQLAlchemy + SQLite (Postgres-ready)
-- **AI:** Groq (open-source Llama 3.3) via the Agno agent framework
+- **AI:** OpenAI (`gpt-4o-mini`) or Groq (open-source Llama 3.3) via the Agno agent framework — switchable by env
 - **OCR:** Tesseract + PyMuPDF
 - **Orchestration:** Temporal (durable workflows) + a token-bucket rate limiter
 - **CI:** GitHub Actions (tests + typecheck + build)
@@ -169,7 +169,9 @@ Render Postgres and set `DATABASE_URL`.
 
 #### Prerequisites
 - **Python 3.12** and **Node 20+** (required)
-- A free **Groq API key** — <https://console.groq.com/keys> (for the AI features)
+- An **LLM API key** for the AI features — either **OpenAI**
+  (<https://platform.openai.com/api-keys>) or a free **Groq** key
+  (<https://console.groq.com/keys>). Put whichever you have in `backend/.env`.
 - *Optional:* **Tesseract OCR** (for image/PDF upload) and the **Temporal CLI**
   (for durable mode). The app runs fine without them — uploads need Tesseract;
   without Temporal it runs the same pipeline in-process.
@@ -216,8 +218,11 @@ Then run the backend with `TEMPORAL_ENABLED=true`.
 ### Configuration (`backend/.env`)
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `GROQ_API_KEY` | — | Your Groq key (AI features) |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Model for extraction + review |
+| `LLM_PROVIDER` | auto | `openai` or `groq`. Auto-detects: OpenAI if its key is set, else Groq |
+| `OPENAI_API_KEY` | — | Your OpenAI key (AI features) |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model for extraction + review |
+| `GROQ_API_KEY` | — | Your Groq key (alternative provider) |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model for extraction + review |
 | `TEMPORAL_ENABLED` | `true` | Use Temporal when reachable (falls back if not) |
 | `AI_REVIEW_ENABLED` | `true` | Run the AI review team on approvable claims |
 | `TESSERACT_CMD` | auto-detected | Path to `tesseract.exe` if not on PATH |
