@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import os
+import secrets
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
 
-from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -23,6 +24,16 @@ from .temporal.client import run_workflow
 from .temporal.shared import WorkflowInput
 
 TEMPORAL_ENABLED = os.getenv("TEMPORAL_ENABLED", "true").lower() == "true"
+
+# Admin password for policy edits. Defaults to "admin" for local dev — set a real
+# value via the ADMIN_TOKEN env var in any deployed environment.
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN") or "admin"
+
+
+def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
+    """Reject policy writes unless the correct admin token is presented."""
+    if not (x_admin_token and secrets.compare_digest(x_admin_token, ADMIN_TOKEN)):
+        raise HTTPException(status_code=401, detail="Invalid admin password")
 
 
 async def _orchestrate(db: Session, claim: ClaimInput, doc_texts: dict[str, str],
@@ -178,13 +189,19 @@ def resolve_review(claim_id: str, payload: ReviewAction, db: Session = Depends(g
     return data
 
 
+@app.post("/api/admin/login")
+def admin_login(_: None = Depends(require_admin)) -> dict:
+    """Validate an admin password (used by the admin UI's login gate)."""
+    return {"ok": True}
+
+
 @app.get("/api/policy")
 def policy() -> dict:
     return load_policy()
 
 
 @app.put("/api/policy")
-def update_policy(policy: dict = Body(...)) -> dict:
+def update_policy(policy: dict = Body(...), _: None = Depends(require_admin)) -> dict:
     if not isinstance(policy, dict) or "coverage_details" not in policy:
         raise HTTPException(status_code=422, detail="invalid policy: missing coverage_details")
     return save_policy(policy)

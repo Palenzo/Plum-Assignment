@@ -1,9 +1,10 @@
 import type { ClaimInput, ClaimsPage, Decision, Explanation, PolicyDoc } from "./types";
 
-// Render's `fromService` wiring supplies a bare host (no scheme); add https://
-// when one is missing so the value works whether it's a full URL or a hostname.
-const RAW_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const BASE = /^https?:\/\//.test(RAW_BASE) ? RAW_BASE : `https://${RAW_BASE}`;
+// Default: call our own origin and let the Next.js proxy (app/api/[...path])
+// forward to the backend at runtime — no CORS, no build-time backend URL.
+// Set NEXT_PUBLIC_API_URL only if you want the browser to hit the backend
+// directly (then the backend must allow that origin via CORS).
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
@@ -44,10 +45,17 @@ export const api = {
 
   getPolicy: () => fetch(`${BASE}/api/policy`, { cache: "no-store" }).then((r) => asJson<PolicyDoc>(r)),
 
-  updatePolicy: (policy: PolicyDoc) =>
+  // Verify an admin password against the backend. Resolves on success, throws on 401.
+  adminLogin: (token: string) =>
+    fetch(`${BASE}/api/admin/login`, {
+      method: "POST",
+      headers: { "X-Admin-Token": token },
+    }).then((r) => asJson<{ ok: boolean }>(r)),
+
+  updatePolicy: (policy: PolicyDoc, token: string) =>
     fetch(`${BASE}/api/policy`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Admin-Token": token },
       body: JSON.stringify(policy),
     }).then((r) => asJson<PolicyDoc>(r)),
 };

@@ -16,13 +16,24 @@ const CATEGORIES = [
 type Status = "idle" | "saving" | "saved" | "error";
 
 export default function AdminPage() {
+  const [token, setToken] = useState<string | null>(null);
   const [policy, setPolicy] = useState<PolicyDoc | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
 
+  // Restore a previously verified session (cleared when the tab closes).
   useEffect(() => {
-    api.getPolicy().then(setPolicy).catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
+    const saved = sessionStorage.getItem("admin_token");
+    if (saved) setToken(saved);
   }, []);
+
+  // Load the policy only once the password has been verified.
+  useEffect(() => {
+    if (!token) return;
+    api.getPolicy().then(setPolicy).catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
+  }, [token]);
+
+  if (!token) return <LoginGate onAuthed={(t) => { sessionStorage.setItem("admin_token", t); setToken(t); }} />;
 
   function update(mutate: (p: PolicyDoc) => void) {
     setPolicy((prev) => {
@@ -35,13 +46,20 @@ export default function AdminPage() {
   }
 
   async function save() {
-    if (!policy) return;
+    if (!policy || !token) return;
     setStatus("saving");
     try {
-      await api.updatePolicy(policy);
+      await api.updatePolicy(policy, token);
       setStatus("saved");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      // A 401 here means the session is no longer valid — send them back to login.
+      const message = e instanceof Error ? e.message : "Save failed";
+      if (message.toLowerCase().includes("admin password")) {
+        sessionStorage.removeItem("admin_token");
+        setToken(null);
+        return;
+      }
+      setError(message);
       setStatus("error");
     }
   }
@@ -105,6 +123,50 @@ export default function AdminPage() {
         {status === "saved" && <span className="text-sm text-ok">Saved ✓</span>}
         {status === "error" && <span className="text-sm text-bad">{error}</span>}
       </div>
+    </div>
+  );
+}
+
+function LoginGate({ onAuthed }: { onAuthed: (token: string) => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.adminLogin(password);
+      onAuthed(password);
+    } catch {
+      setError("Incorrect password");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto mt-16 max-w-sm">
+      <h1 className="text-3xl">Policy administration</h1>
+      <p className="mt-2 text-ink-muted">Enter the admin password to manage coverage limits and exclusions.</p>
+      <form onSubmit={submit} className="mt-6 space-y-3">
+        <input
+          type="password"
+          autoFocus
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Admin password"
+          className="w-full rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-ink focus:border-primary focus-visible:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={busy || !password}
+          className="w-full rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:opacity-50"
+        >
+          {busy ? "Checking…" : "Unlock"}
+        </button>
+        {error && <p className="text-sm text-bad">{error}</p>}
+      </form>
     </div>
   );
 }

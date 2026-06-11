@@ -25,6 +25,9 @@ services:
     build: ./frontend
     depends_on:
       - backend
+    environment:
+      # The Next.js server proxies /api/* here (service-to-service on the compose network).
+      - BACKEND_URL=http://backend:8000
     ports:
       - "3000:3000"
 

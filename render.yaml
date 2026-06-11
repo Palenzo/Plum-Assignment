@@ -25,6 +25,8 @@ services:
         value: "false"
       - key: AI_REVIEW_ENABLED
         value: "true"
+      - key: ADMIN_TOKEN       # password for the /admin policy editor — set your own
+        sync: false
 
   # ---- Frontend: Next.js ----
   - type: web
@@ -35,8 +37,8 @@ services:
     plan: free
     region: singapore
     envVars:
-      # Wired automatically to the backend's hostname; baked into the build.
-      - key: NEXT_PUBLIC_API_URL
+      # Read at runtime by the API proxy (no CORS, no build-time baking).
+      - key: BACKEND_URL
         fromService:
           type: web
           name: plum-opd-backend

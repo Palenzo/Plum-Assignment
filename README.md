@@ -157,7 +157,8 @@ Dockerfiles, so the cloud deployment includes Tesseract OCR too.
 
 1. Push this repo to GitHub.
 2. In Render: **New → Blueprint**, pick the repo, **Apply**.
-3. When prompted, paste your **`GROQ_API_KEY`** (the only secret).
+3. When prompted, set two values: **`GROQ_API_KEY`** (your Groq key) and
+   **`ADMIN_TOKEN`** (the password you'll use for the `/admin` page).
 
 That's it. Render wires the frontend to the backend automatically, runs the
 pipeline in-process (no Temporal server needed), and gives each service a public
@@ -221,6 +222,11 @@ Then run the backend with `TEMPORAL_ENABLED=true`.
 | `AI_REVIEW_ENABLED` | `true` | Run the AI review team on approvable claims |
 | `TESSERACT_CMD` | auto-detected | Path to `tesseract.exe` if not on PATH |
 | `DATABASE_URL` | `sqlite:///./claims.db` | Swap for Postgres in production |
+| `ADMIN_TOKEN` | `admin` | Password required to edit the policy (`/admin`) — **set a real one in production** |
+
+The **frontend** takes one env var, `BACKEND_URL` (default `http://127.0.0.1:8000`):
+the Next.js server proxies `/api/*` to it at runtime, so the browser only ever
+talks to its own origin — no CORS, and no backend URL baked into the build.
 
 ## Testing & accuracy
 
@@ -236,7 +242,11 @@ Tesseract skip cleanly when those aren't available.
 ## Admin dashboard
 
 `/admin` lets an administrator view and edit the live policy (limits, sub-limits,
-exclusions) without redeploying — backed by `GET`/`PUT /api/policy`.
+exclusions) without redeploying — backed by `GET`/`PUT /api/policy`. The page is
+**password-protected**: it prompts for the `ADMIN_TOKEN` and verifies it against the
+backend (`POST /api/admin/login`) before revealing the editor, and the policy-write
+endpoint rejects any request without the correct token (`401`). Local default is
+`admin`; set a real `ADMIN_TOKEN` in any deployment.
 
 ## API
 
