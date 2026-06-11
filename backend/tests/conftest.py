@@ -9,6 +9,7 @@ _BACKEND = Path(__file__).parent.parent
 os.environ["DATABASE_URL"] = "sqlite:///./test_claims.db"  # set before app import
 os.environ["TEMPORAL_ENABLED"] = "false"  # tests use the in-process path
 os.environ["AI_REVIEW_ENABLED"] = "false"  # deterministic engine only in tests
+os.environ["AI_EXPLAIN_ENABLED"] = "false"  # explanation falls back to retrieval-only in tests
 os.environ["POLICY_PATH"] = str(_BACKEND / "test_policy.json")  # never touch the real policy
 
 import pytest

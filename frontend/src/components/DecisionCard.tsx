@@ -2,6 +2,7 @@ import type { Decision } from "@/lib/types";
 import { VERDICT, reasonLabel } from "@/lib/verdict";
 import { AuditTrail } from "./AuditTrail";
 import { ConfidenceMeter } from "./ConfidenceMeter";
+import { ExplainPanel } from "./ExplainPanel";
 import { MoneyBreakdown } from "./MoneyBreakdown";
 import { VerdictBadge } from "./VerdictBadge";
 
@@ -65,6 +66,10 @@ export function DecisionCard({ decision }: { decision: Decision }) {
           {decision.next_steps}
         </p>
       )}
+
+      <div className="mt-4">
+        <ExplainPanel claimId={decision.claim_id} />
+      </div>
 
       <div className="mt-4">
         <AuditTrail entries={decision.audit_trail} />

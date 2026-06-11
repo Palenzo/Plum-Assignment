@@ -38,6 +38,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Link href="/" className="transition-colors hover:text-ink">Submit a claim</Link>
               <Link href="/review" className="transition-colors hover:text-ink">Review</Link>
               <Link href="/claims" className="transition-colors hover:text-ink">Claims</Link>
+              <Link href="/admin" className="transition-colors hover:text-ink">Admin</Link>
             </nav>
           </div>
         </header>

@@ -47,6 +47,22 @@ export interface Decision {
   audit_trail: AuditEntry[];
 }
 
+export interface Explanation {
+  summary: string;
+  citations: string[];
+}
+
+export interface PolicyDoc {
+  coverage_details: {
+    annual_limit: number;
+    per_claim_limit: number;
+    family_floater_limit: number;
+    [key: string]: unknown;
+  };
+  exclusions: string[];
+  [key: string]: unknown;
+}
+
 export interface ClaimListItem {
   claim_id: string;
   member_name: string;
@@ -54,4 +70,9 @@ export interface ClaimListItem {
   claim_amount: number;
   approved_amount: number;
   flags?: string[];
+}
+
+export interface ClaimsPage {
+  items: ClaimListItem[];
+  total: number;
 }

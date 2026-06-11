@@ -1,4 +1,4 @@
-import type { ClaimInput, ClaimListItem, Decision } from "./types";
+import type { ClaimInput, ClaimsPage, Decision, Explanation, PolicyDoc } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -18,8 +18,13 @@ export const api = {
   submitUpload: (form: FormData) =>
     fetch(`${BASE}/api/claims`, { method: "POST", body: form }).then((r) => asJson<Decision>(r)),
 
-  listClaims: () =>
-    fetch(`${BASE}/api/claims`, { cache: "no-store" }).then((r) => asJson<ClaimListItem[]>(r)),
+  listClaims: (opts: { limit?: number; offset?: number; status?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.limit != null) params.set("limit", String(opts.limit));
+    if (opts.offset != null) params.set("offset", String(opts.offset));
+    if (opts.status) params.set("status", opts.status);
+    return fetch(`${BASE}/api/claims?${params}`, { cache: "no-store" }).then((r) => asJson<ClaimsPage>(r));
+  },
 
   getClaim: (id: string) =>
     fetch(`${BASE}/api/claims/${id}`, { cache: "no-store" }).then((r) => asJson<Decision>(r)),
@@ -30,4 +35,16 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, note }),
     }).then((r) => asJson<Decision>(r)),
+
+  explainClaim: (id: string) =>
+    fetch(`${BASE}/api/claims/${id}/explain`, { cache: "no-store" }).then((r) => asJson<Explanation>(r)),
+
+  getPolicy: () => fetch(`${BASE}/api/policy`, { cache: "no-store" }).then((r) => asJson<PolicyDoc>(r)),
+
+  updatePolicy: (policy: PolicyDoc) =>
+    fetch(`${BASE}/api/policy`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(policy),
+    }).then((r) => asJson<PolicyDoc>(r)),
 };

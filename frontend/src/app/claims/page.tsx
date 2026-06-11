@@ -1,26 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { inr } from "@/lib/format";
 import type { ClaimListItem } from "@/lib/types";
 import { VerdictBadge } from "@/components/VerdictBadge";
 
+const PAGE = 10;
+
 export default function ClaimsPage() {
   const [items, setItems] = useState<ClaimListItem[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const loadMore = useCallback(async () => {
+    setLoading(true);
+    try {
+      const offset = items?.length ?? 0;
+      const page = await api.listClaims({ limit: PAGE, offset });
+      setItems((prev) => [...(prev ?? []), ...page.items]);
+      setTotal(page.total);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }, [items]);
+
+  // Initial page only.
   useEffect(() => {
-    api.listClaims().then(setItems).catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
+    api
+      .listClaims({ limit: PAGE, offset: 0 })
+      .then((page) => { setItems(page.items); setTotal(page.total); })
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
   }, []);
+
+  const shown = items?.length ?? 0;
 
   return (
     <div>
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-3xl">Claims</h1>
-          <p className="mt-2 text-ink-muted">Every adjudicated claim and its decision.</p>
+          <p className="mt-2 text-ink-muted">
+            Every adjudicated claim and its decision{total > 0 ? ` · ${shown} of ${total}` : ""}.
+          </p>
         </div>
         <Link href="/" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover">
           New claim
@@ -37,26 +63,36 @@ export default function ClaimsPage() {
           </div>
         )}
         {items && items.length > 0 && (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
-            {items.map((item) => (
-              <li key={item.claim_id}>
-                <Link
-                  href={`/claims/${item.claim_id}`}
-                  className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface"
+          <>
+            <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
+              {items.map((item) => (
+                <li key={item.claim_id}>
+                  <Link href={`/claims/${item.claim_id}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-ink">{item.member_name}</p>
+                      <p className="tnum text-xs text-ink-faint">{item.claim_id}</p>
+                    </div>
+                    <div className="hidden text-right sm:block">
+                      <p className="tnum text-sm text-ink">{inr(item.approved_amount)}</p>
+                      <p className="tnum text-xs text-ink-faint">of {inr(item.claim_amount)}</p>
+                    </div>
+                    <VerdictBadge verdict={item.decision} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {shown < total && (
+              <div className="mt-5 text-center">
+                <button
+                  onClick={loadMore}
+                  disabled={loading}
+                  className="rounded-md border border-border px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:border-primary disabled:opacity-50"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-ink">{item.member_name}</p>
-                    <p className="tnum text-xs text-ink-faint">{item.claim_id}</p>
-                  </div>
-                  <div className="hidden text-right sm:block">
-                    <p className="tnum text-sm text-ink">{inr(item.approved_amount)}</p>
-                    <p className="tnum text-xs text-ink-faint">of {inr(item.claim_amount)}</p>
-                  </div>
-                  <VerdictBadge verdict={item.decision} />
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  {loading ? "Loading…" : `Load more (${total - shown} left)`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

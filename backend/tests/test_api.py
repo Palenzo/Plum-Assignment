@@ -29,7 +29,8 @@ def test_submit_approves_and_persists(client):
     assert fetched.json()["claim_id"] == claim_id
 
     listing = client.get("/api/claims").json()
-    assert any(c["claim_id"] == claim_id for c in listing)
+    assert listing["total"] >= 1
+    assert any(c["claim_id"] == claim_id for c in listing["items"])
 
 
 def test_duplicate_resubmission_is_flagged(client):
@@ -41,3 +42,17 @@ def test_duplicate_resubmission_is_flagged(client):
 
 def test_unknown_claim_returns_404(client):
     assert client.get("/api/claims/CLM_UNKNOWN").status_code == 404
+
+
+def test_claims_are_paginated(client):
+    for i in range(3):
+        payload = {**TC001, "member_id": f"EMP-P{i}", "claim_amount": 1500 + i * 100,
+                   "bill": {"consultation_fee": 1000 + i * 100, "diagnostic_tests": 500}}
+        assert client.post("/api/claims/json", json=payload).status_code == 200
+
+    first = client.get("/api/claims?limit=2").json()
+    assert len(first["items"]) == 2
+    assert first["total"] == 3
+
+    second = client.get("/api/claims?limit=2&offset=2").json()
+    assert len(second["items"]) == 1

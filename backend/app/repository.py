@@ -24,8 +24,19 @@ def get(db: Session, claim_id: str) -> ClaimRecord | None:
     return db.query(ClaimRecord).filter(ClaimRecord.claim_id == claim_id).first()
 
 
-def list_all(db: Session) -> list[ClaimRecord]:
-    return db.query(ClaimRecord).order_by(ClaimRecord.created_at.desc()).all()
+def list_all(db: Session, *, limit: int = 10, offset: int = 0,
+             status: str | None = None) -> list[ClaimRecord]:
+    query = db.query(ClaimRecord)
+    if status:
+        query = query.filter(ClaimRecord.decision == status)
+    return query.order_by(ClaimRecord.created_at.desc()).offset(offset).limit(limit).all()
+
+
+def count_claims(db: Session, *, status: str | None = None) -> int:
+    query = db.query(ClaimRecord)
+    if status:
+        query = query.filter(ClaimRecord.decision == status)
+    return query.count()
 
 
 def signatures(db: Session) -> set[str]:

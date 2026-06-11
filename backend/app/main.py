@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from . import repository
 from .db import get_db, init_db
+from .explain import Explanation, explain_decision
 from .ingestion import ocr_document
 from .models import ClaimInput, Decision
 from .policy import load_policy, save_policy
@@ -101,14 +102,29 @@ def get_claim(claim_id: str, db: Session = Depends(get_db)) -> dict:
     return record.decision_json
 
 
+@app.get("/api/claims/{claim_id}/explain", response_model=Explanation)
+def explain_claim(claim_id: str, db: Session = Depends(get_db)) -> Explanation:
+    record = repository.get(db, claim_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="claim not found")
+    return explain_decision(Decision(**record.decision_json))
+
+
 @app.get("/api/claims")
-def list_claims(db: Session = Depends(get_db)) -> list[dict]:
-    return [
-        {"claim_id": r.claim_id, "member_name": r.member_name, "decision": r.decision,
-         "claim_amount": r.claim_amount, "approved_amount": r.approved_amount,
-         "flags": (r.decision_json or {}).get("flags", [])}
-        for r in repository.list_all(db)
-    ]
+def list_claims(limit: int = 10, offset: int = 0, status: str | None = None,
+                db: Session = Depends(get_db)) -> dict:
+    limit = max(1, min(limit, 50))
+    offset = max(0, offset)
+    records = repository.list_all(db, limit=limit, offset=offset, status=status)
+    return {
+        "items": [
+            {"claim_id": r.claim_id, "member_name": r.member_name, "decision": r.decision,
+             "claim_amount": r.claim_amount, "approved_amount": r.approved_amount,
+             "flags": (r.decision_json or {}).get("flags", [])}
+            for r in records
+        ],
+        "total": repository.count_claims(db, status=status),
+    }
 
 
 class ReviewAction(BaseModel):
