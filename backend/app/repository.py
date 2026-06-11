@@ -1,0 +1,32 @@
+"""Data access for claim records — keeps SQLAlchemy out of the service layer."""
+from __future__ import annotations
+
+from sqlalchemy.orm import Session
+
+from .db import ClaimRecord
+from .models import ClaimInput, Decision
+
+
+def save(db: Session, claim: ClaimInput, decision: Decision, signature: str) -> ClaimRecord:
+    record = ClaimRecord(
+        claim_id=decision.claim_id, member_id=claim.member_id,
+        member_name=claim.member_name, treatment_date=claim.treatment_date,
+        claim_amount=claim.claim_amount, signature=signature,
+        decision=decision.decision, approved_amount=decision.approved_amount,
+        decision_json=decision.model_dump(mode="json"))
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def get(db: Session, claim_id: str) -> ClaimRecord | None:
+    return db.query(ClaimRecord).filter(ClaimRecord.claim_id == claim_id).first()
+
+
+def list_all(db: Session) -> list[ClaimRecord]:
+    return db.query(ClaimRecord).order_by(ClaimRecord.created_at.desc()).all()
+
+
+def signatures(db: Session) -> set[str]:
+    return {sig for (sig,) in db.query(ClaimRecord.signature).all()}
