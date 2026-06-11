@@ -1,0 +1,225 @@
+# Plum OPD — Claim Adjudication Tool
+
+An AI-powered tool that decides OPD (outpatient) insurance claims automatically.
+A member submits their bill and prescription; the system reads the documents,
+checks them against the policy, and returns a clear decision — **approved,
+rejected, partially approved, or sent to a human** — with the amount, the reason,
+and a confidence score.
+
+## The one idea behind everything
+
+Insurance decisions have to be **accurate, repeatable, and explainable**. A
+language model is brilliant at reading messy documents but is the wrong tool to
+decide who gets paid — it can answer differently on the same input, and "the model
+was confident" is not something you can defend to a regulator. So the work is
+split three ways:
+
+> **The AI reads and reasons about the fuzzy parts. A deterministic rule engine
+> decides the money and the hard rules. A human resolves anything the AI is
+> unsure about.**
+
+Concretely:
+- **AI (Llama, via Groq + Agno)** turns a photo of a prescription into structured
+  data, and judges *clinical* questions like "does this diagnosis justify this
+  treatment?" It can **flag and escalate** — it can never approve a claim or change
+  an amount.
+- **The rule engine (plain Python)** applies the policy exactly the same way every
+  time. It passes all 10 provided test cases at 100%.
+- **The human** has the final say on anything the AI escalates.
+
+## What it does
+
+- 📄 **Reads real documents** — upload an image or PDF; OCR + an LLM pull out the
+  doctor, diagnosis, line items, and dates.
+- ⚖️ **Adjudicates deterministically** — a 5-step policy pipeline (eligibility →
+  documents → coverage → limits → medical necessity) with co-pay, network discount,
+  and partial-approval math.
+- 🧠 **AI review team** — two Agno agents (medical-necessity + fraud) catch
+  clinically wrong claims the rules can't see, and escalate them to a human.
+- 🙋 **Human-in-the-loop** — escalated claims land in a review queue where an
+  officer approves or rejects them.
+- 🔁 **Durable & cost-safe** — every claim runs as a Temporal workflow (retries,
+  crash-safe), with cheap pre-checks and a rate limiter so the LLM budget is never
+  blown.
+- 📊 **Explainable** — every decision shows the exact rules it checked, in order.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    UI["Next.js UI<br/>submit · live decision · review queue · dashboard"]
+    EP["FastAPI<br/>/api/claims · /api/claims/{id}/review · /api/policy"]
+
+    subgraph WF["Temporal durable workflow (one per claim)"]
+        direction TB
+        GATE["Cheap gates<br/>missing docs · below-min · duplicate<br/>(zero AI cost)"]
+        OCR["OCR ingestion<br/>Tesseract · PyMuPDF"]
+        EX["Extraction agent<br/>Agno + Groq Llama"]
+        ENG["Deterministic rule engine<br/>5-step pipeline"]
+        REV["AI review team<br/>necessity + fraud agents"]
+        GATE --> OCR --> EX --> ENG --> REV
+    end
+
+    DB[("SQLite<br/>claims · decisions")]
+    GROQ["Groq · open-source Llama 3.3"]
+    RL["Token-bucket rate limiter"]
+    HUMAN["Claims officer<br/>approve / reject"]
+
+    UI --> EP --> WF
+    GATE -. "obvious reject (no AI)" .-> DB
+    REV --> DB
+    EX -. throttled .-> RL
+    REV -. throttled .-> RL
+    EX -. LLM .-> GROQ
+    REV -. LLM .-> GROQ
+    REV -. "raises a concern" .-> HUMAN
+    HUMAN --> EP
+    EP <--> DB
+```
+
+Full write-up: [docs/architecture.md](docs/architecture.md).
+
+## How a decision is made
+
+A claim flows top-to-bottom and stops at the **first** rule that decides it —
+cheap checks first (to save cost), then the ordered policy rules, then the AI
+review, then a human if needed.
+
+```mermaid
+flowchart TD
+    A["Claim submitted"] --> B{"Cheap gates<br/>(zero AI cost)"}
+    B -->|"no prescription"| R1["REJECTED · MISSING_DOCUMENTS"]
+    B -->|"below ₹500 / duplicate"| R2["REJECTED"]
+    B -->|pass| C{"1 · Eligibility<br/>waiting period"}
+    C -->|within waiting| R3["REJECTED · WAITING_PERIOD"]
+    C -->|ok| D{"2 · Documents<br/>doctor reg valid"}
+    D -->|invalid| R4["REJECTED · DOCTOR_REG_INVALID"]
+    D -->|ok| E{"Safety · fraud<br/>same-day count · high value"}
+    E -->|anomaly| MR["MANUAL_REVIEW"]
+    E -->|ok| F{"3 · Coverage<br/>exclusions · pre-auth"}
+    F -->|excluded| R5["REJECTED · SERVICE_NOT_COVERED"]
+    F -->|MRI/CT, no pre-auth| R6["REJECTED · PRE_AUTH_MISSING"]
+    F -->|ok| G{"4 · Limits<br/>cosmetic items · per-claim"}
+    G -->|cosmetic item| P["PARTIAL · strip item, cap by sub-limit"]
+    G -->|over per-claim| R7["REJECTED · PER_CLAIM_EXCEEDED"]
+    G -->|ok| H["Settlement<br/>co-pay or network discount"]
+    H --> I{"5 · AI review<br/>necessity + fraud"}
+    P --> I
+    I -->|concern| MR
+    I -->|clear| OK["APPROVED"]
+    MR --> K{"Human reviewer"}
+    K -->|approve| OK
+    K -->|reject| RJ["REJECTED"]
+```
+
+Full write-up: [docs/decision-flow.md](docs/decision-flow.md).
+
+## Tech stack
+
+- **Frontend:** Next.js 16, React 19, TypeScript, Tailwind v4
+- **Backend:** Python, FastAPI, SQLAlchemy + SQLite (Postgres-ready)
+- **AI:** Groq (open-source Llama 3.3) via the Agno agent framework
+- **OCR:** Tesseract + PyMuPDF
+- **Orchestration:** Temporal (durable workflows) + a token-bucket rate limiter
+- **CI:** GitHub Actions (tests + typecheck + build)
+
+## Getting started
+
+### Prerequisites
+- **Python 3.12** and **Node 20+** (required)
+- A free **Groq API key** — <https://console.groq.com/keys> (for the AI features)
+- *Optional:* **Tesseract OCR** (for image/PDF upload) and the **Temporal CLI**
+  (for durable mode). The app runs fine without them — uploads need Tesseract;
+  without Temporal it runs the same pipeline in-process.
+
+### 1. Backend
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
+pip install -e ".[dev]"
+copy .env.example .env                # then put your GROQ_API_KEY in .env
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+API at <http://localhost:8000>, interactive docs at <http://localhost:8000/docs>.
+
+### 2. Frontend
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+App at <http://localhost:3000>.
+
+### 3. (Optional) Durable mode with Temporal
+```powershell
+temporal server start-dev --ui-port 8233          # terminal 1 — Temporal UI at :8233
+cd backend; .\.venv\Scripts\python.exe -m app.temporal.worker   # terminal 2 — the worker
+```
+With these running, the backend routes every claim through a durable workflow you
+can watch in the Temporal UI. If they're not running, it automatically falls back
+to the in-process path.
+
+### Configuration (`backend/.env`)
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `GROQ_API_KEY` | — | Your Groq key (AI features) |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Model for extraction + review |
+| `TEMPORAL_ENABLED` | `true` | Use Temporal when reachable (falls back if not) |
+| `AI_REVIEW_ENABLED` | `true` | Run the AI review team on approvable claims |
+| `TESSERACT_CMD` | auto-detected | Path to `tesseract.exe` if not on PATH |
+| `DATABASE_URL` | `sqlite:///./claims.db` | Swap for Postgres in production |
+
+## Testing & accuracy
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m pytest -q     # full suite (live LLM/OCR tests skip without a key)
+.\.venv\Scripts\python.exe eval.py          # accuracy vs the 10 provided test cases
+```
+`eval.py` reports **100% decision accuracy and 100% amount accuracy** against
+`test_cases.json`. The deterministic suite always runs; tests that need the LLM or
+Tesseract skip cleanly when those aren't available.
+
+## Admin dashboard
+
+`/admin` lets an administrator view and edit the live policy (limits, sub-limits,
+exclusions) without redeploying — backed by `GET`/`PUT /api/policy`.
+
+## API
+
+Summary in [docs/api.md](docs/api.md); live interactive docs at `/docs`.
+
+## Project structure
+
+```
+backend/
+  app/
+    engine.py        # deterministic rule engine (the 5-step pipeline)
+    gates.py         # cheap pre-extraction checks
+    extraction.py    # Agno + Groq document extraction
+    review.py        # Agno AI review team (necessity + fraud) + advisory layer
+    service.py       # orchestrates gate → engine → review → persist
+    main.py          # FastAPI endpoints
+    db.py / repository.py
+    temporal/        # durable workflow, activities, worker, rate limiter
+  tests/             # pytest (deterministic + live-skipping integration tests)
+  eval.py            # accuracy harness
+frontend/
+  src/app/           # submit, claims, claim detail, review queue, admin
+  src/components/    # decision card, confidence meter, review panel, ...
+docs/                # architecture, decision flow, API
+ASSUMPTIONS.md       # documented calls on ambiguous/contradictory rules
+```
+
+## Notes & limitations
+
+- **Groq free tier** caps daily tokens. If the AI features pause, the daily quota
+  is exhausted — switch `GROQ_MODEL` to a smaller model (e.g.
+  `llama-3.1-8b-instant`, a separate quota), use a new key, or wait for reset. The
+  deterministic engine and JSON submissions are unaffected.
+- Confidence scores are computed directionally (high for clear deterministic
+  outcomes, low for escalations) — they are honest signals, not calibrated
+  probabilities.
+- See [ASSUMPTIONS.md](ASSUMPTIONS.md) for interpretation calls on the provided
+  rules and data.

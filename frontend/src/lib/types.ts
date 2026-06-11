@@ -53,4 +53,5 @@ export interface ClaimListItem {
   decision: Verdict;
   claim_amount: number;
   approved_amount: number;
+  flags?: string[];
 }

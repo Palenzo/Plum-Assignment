@@ -30,3 +30,14 @@ def list_all(db: Session) -> list[ClaimRecord]:
 
 def signatures(db: Session) -> set[str]:
     return {sig for (sig,) in db.query(ClaimRecord.signature).all()}
+
+
+def resolve(db: Session, record: ClaimRecord, decision: str, approved_amount: float,
+            decision_json: dict) -> ClaimRecord:
+    """Record a reviewer's resolution of a MANUAL_REVIEW claim."""
+    record.decision = decision
+    record.approved_amount = approved_amount
+    record.decision_json = decision_json
+    db.commit()
+    db.refresh(record)
+    return record

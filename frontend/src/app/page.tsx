@@ -21,7 +21,7 @@ export default function Home() {
     setError("");
     setDecision(null);
     try {
-      const [result] = await Promise.all([work(), delay(1700)]);
+      const [result] = await Promise.all([work(), delay(1200)]);
       setDecision(result);
       setStatus("done");
     } catch (e) {
@@ -31,7 +31,7 @@ export default function Home() {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
+    <div className="grid gap-8 lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)] lg:gap-10">
       <section>
         <h1 className="text-3xl sm:text-4xl">Submit an OPD claim</h1>
         <p className="mt-3 max-w-prose text-ink-muted">
@@ -47,18 +47,20 @@ export default function Home() {
         </div>
       </section>
 
-      <section aria-live="polite" className="lg:pt-1">
-        {status === "idle" && <EmptyState />}
-        {status === "processing" && (
-          <div className="rounded-2xl border border-border p-6 sm:p-8">
-            <p className="font-display text-lg font-medium">Working through your claim</p>
-            <div className="mt-5">
-              <ProcessingStepper />
+      <section aria-live="polite" className="flex rounded-2xl border border-border bg-surface p-5 sm:p-8 lg:min-h-[36rem]">
+        <div className="m-auto w-full max-w-xl">
+          {status === "idle" && <EmptyState />}
+          {status === "processing" && (
+            <div className="rounded-2xl border border-border bg-bg p-6 shadow-sm sm:p-8">
+              <p className="font-display text-lg font-medium">Working through your claim</p>
+              <div className="mt-5">
+                <ProcessingStepper />
+              </div>
             </div>
-          </div>
-        )}
-        {status === "done" && decision && <DecisionCard decision={decision} />}
-        {status === "error" && <ErrorState message={error} />}
+          )}
+          {status === "done" && decision && <DecisionCard decision={decision} />}
+          {status === "error" && <ErrorState message={error} />}
+        </div>
       </section>
     </div>
   );
@@ -66,8 +68,10 @@ export default function Home() {
 
 function EmptyState() {
   return (
-    <div className="flex h-full min-h-72 flex-col items-start justify-center rounded-2xl border border-dashed border-border p-8">
-      <Shield className="h-7 w-7 text-primary" />
+    <div className="flex flex-col items-center px-4 text-center">
+      <span className="grid h-12 w-12 place-items-center rounded-full bg-primary-soft">
+        <Shield className="h-6 w-6 text-primary" />
+      </span>
       <p className="mt-4 font-display text-lg font-medium">Your decision will appear here</p>
       <p className="mt-1.5 max-w-xs text-sm text-ink-muted">
         The AI reads your documents; a deterministic policy engine makes the call — and shows its working.

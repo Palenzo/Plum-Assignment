@@ -29,20 +29,21 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <header className="border-b border-border">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
+          <div className="flex w-full items-center justify-between px-6 py-4 sm:px-8 lg:px-12">
             <Link href="/" className="flex items-center gap-2.5">
               <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-ink font-display text-base font-semibold">p</span>
               <span className="font-display text-lg font-medium tracking-tight">Plum OPD</span>
             </Link>
             <nav className="flex items-center gap-6 text-sm text-ink-muted">
               <Link href="/" className="transition-colors hover:text-ink">Submit a claim</Link>
+              <Link href="/review" className="transition-colors hover:text-ink">Review</Link>
               <Link href="/claims" className="transition-colors hover:text-ink">Claims</Link>
             </nav>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10 sm:py-14">{children}</main>
+        <main className="w-full flex-1 px-6 py-10 sm:px-8 sm:py-12 lg:px-12">{children}</main>
         <footer className="border-t border-border">
-          <div className="mx-auto w-full max-w-5xl px-6 py-5 text-sm text-ink-faint">
+          <div className="w-full px-6 py-5 text-sm text-ink-faint sm:px-8 lg:px-12">
             Decisions are made by a deterministic policy engine. AI reads the documents; the rules decide.
           </div>
         </footer>

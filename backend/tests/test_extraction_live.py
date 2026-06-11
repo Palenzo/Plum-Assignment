@@ -10,6 +10,8 @@ import pytest
 from app.config import settings
 from app.extraction import extract
 
+from ._llm import skip_on_quota
+
 pytestmark = pytest.mark.skipif(
     not settings()["groq_api_key"], reason="GROQ_API_KEY not set")
 
@@ -29,6 +31,7 @@ TOTAL ..................... 1500
 """
 
 
+@skip_on_quota
 def test_agent_extracts_structured_fields_from_messy_text():
     doc = extract(MESSY_DOCUMENT)
 

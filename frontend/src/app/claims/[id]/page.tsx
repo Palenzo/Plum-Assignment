@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Decision } from "@/lib/types";
 import { DecisionCard } from "@/components/DecisionCard";
+import { ReviewPanel } from "@/components/ReviewPanel";
 
 export default function ClaimDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,7 +26,14 @@ export default function ClaimDetailPage() {
       <div className="mt-5 max-w-xl">
         {error && <p className="rounded-lg bg-bad-bg px-4 py-3 text-sm text-bad">{error}</p>}
         {!error && !decision && <div className="h-72 animate-pulse rounded-2xl border border-border bg-surface" />}
-        {decision && <DecisionCard decision={decision} />}
+        {decision && (
+          <div className="space-y-5">
+            <DecisionCard decision={decision} />
+            {decision.decision === "MANUAL_REVIEW" && (
+              <ReviewPanel claimId={decision.claim_id} onResolved={setDecision} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

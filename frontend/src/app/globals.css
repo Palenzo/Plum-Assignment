@@ -6,7 +6,7 @@
   --color-surface: oklch(0.985 0 0);
   --color-ink: oklch(0.23 0.008 120);
   --color-ink-muted: oklch(0.45 0.01 120);
-  --color-ink-faint: oklch(0.6 0.01 120);
+  --color-ink-faint: oklch(0.52 0.01 120);
   --color-border: oklch(0.91 0.004 120);
   --color-border-strong: oklch(0.84 0.005 120);
 

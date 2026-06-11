@@ -23,4 +23,11 @@ export const api = {
 
   getClaim: (id: string) =>
     fetch(`${BASE}/api/claims/${id}`, { cache: "no-store" }).then((r) => asJson<Decision>(r)),
+
+  resolveClaim: (id: string, action: "approve" | "reject", note: string) =>
+    fetch(`${BASE}/api/claims/${id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, note }),
+    }).then((r) => asJson<Decision>(r)),
 };

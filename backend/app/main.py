@@ -1,19 +1,45 @@
 """FastAPI surface for claim submission and status."""
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from datetime import date
+from typing import Literal
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from . import repository
 from .db import get_db, init_db
 from .ingestion import ocr_document
 from .models import ClaimInput, Decision
-from .policy import load_policy
+from .policy import load_policy, save_policy
 from .service import adjudicate_and_store, adjudicate_upload
+from .temporal.client import run_workflow
+from .temporal.shared import WorkflowInput
+
+TEMPORAL_ENABLED = os.getenv("TEMPORAL_ENABLED", "true").lower() == "true"
+
+
+async def _orchestrate(db: Session, claim: ClaimInput, doc_texts: dict[str, str],
+                       needs_extraction: bool) -> Decision:
+    """Run the claim through the durable workflow, falling back in-process."""
+    if TEMPORAL_ENABLED:
+        try:
+            return await run_workflow(
+                WorkflowInput(claim=claim, doc_texts=doc_texts, needs_extraction=needs_extraction))
+        except Exception as exc:  # Temporal unreachable — keep the app working
+            print(f"[temporal] unavailable, running in-process: {exc}")
+    if needs_extraction:
+        return adjudicate_upload(
+            db, member_id=claim.member_id, member_name=claim.member_name,
+            treatment_date=claim.treatment_date, claim_amount=claim.claim_amount,
+            doc_texts=doc_texts, member_join_date=claim.member_join_date, hospital=claim.hospital,
+            cashless_request=claim.cashless_request,
+            previous_claims_same_day=claim.previous_claims_same_day)
+    return adjudicate_and_store(db, claim)
 
 
 @asynccontextmanager
@@ -38,8 +64,8 @@ def health() -> dict:
 
 
 @app.post("/api/claims/json", response_model=Decision)
-def submit_claim(payload: ClaimInput, db: Session = Depends(get_db)) -> Decision:
-    return adjudicate_and_store(db, payload)
+async def submit_claim(payload: ClaimInput, db: Session = Depends(get_db)) -> Decision:
+    return await _orchestrate(db, payload, {}, needs_extraction=False)
 
 
 @app.post("/api/claims", response_model=Decision)
@@ -60,11 +86,11 @@ async def submit_documents(
     for label, upload in (("prescription", prescription), ("bill", bill)):
         if upload is not None:
             doc_texts[label] = ocr_document(upload.filename, await upload.read())
-    return adjudicate_upload(
-        db, member_id=member_id, member_name=member_name, treatment_date=treatment_date,
-        claim_amount=claim_amount, doc_texts=doc_texts, member_join_date=member_join_date,
-        hospital=hospital, cashless_request=cashless_request,
-        previous_claims_same_day=previous_claims_same_day)
+    metadata = ClaimInput(
+        member_id=member_id, member_name=member_name, treatment_date=treatment_date,
+        claim_amount=claim_amount, member_join_date=member_join_date, hospital=hospital,
+        cashless_request=cashless_request, previous_claims_same_day=previous_claims_same_day)
+    return await _orchestrate(db, metadata, doc_texts, needs_extraction=True)
 
 
 @app.get("/api/claims/{claim_id}", response_model=Decision)
@@ -79,11 +105,50 @@ def get_claim(claim_id: str, db: Session = Depends(get_db)) -> dict:
 def list_claims(db: Session = Depends(get_db)) -> list[dict]:
     return [
         {"claim_id": r.claim_id, "member_name": r.member_name, "decision": r.decision,
-         "claim_amount": r.claim_amount, "approved_amount": r.approved_amount}
+         "claim_amount": r.claim_amount, "approved_amount": r.approved_amount,
+         "flags": (r.decision_json or {}).get("flags", [])}
         for r in repository.list_all(db)
     ]
+
+
+class ReviewAction(BaseModel):
+    action: Literal["approve", "reject"]
+    note: str = ""
+
+
+@app.post("/api/claims/{claim_id}/review", response_model=Decision)
+def resolve_review(claim_id: str, payload: ReviewAction, db: Session = Depends(get_db)) -> dict:
+    record = repository.get(db, claim_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="claim not found")
+    if record.decision != "MANUAL_REVIEW":
+        raise HTTPException(status_code=409, detail="claim is not awaiting review")
+
+    data = dict(record.decision_json)
+    if payload.action == "approve":
+        amount = record.approved_amount or record.claim_amount
+        data.update(decision="APPROVED", approved_amount=amount,
+                    notes=f"Approved by claims officer. {payload.note}".strip(),
+                    next_steps="Reimbursement will be processed.")
+    else:
+        amount = 0.0
+        data.update(decision="REJECTED", approved_amount=0.0,
+                    notes=f"Rejected by claims officer. {payload.note}".strip(),
+                    next_steps="This claim will not be reimbursed.")
+    data["confidence_score"] = 1.0
+    data["flags"] = list(data.get("flags", [])) + ["Resolved by claims officer"]
+
+    repository.resolve(db, record, data["decision"], amount, data)
+    return data
 
 
 @app.get("/api/policy")
 def policy() -> dict:
     return load_policy()
+
+
+@app.put("/api/policy")
+def update_policy(policy: dict = Body(...)) -> dict:
+    if not isinstance(policy, dict) or "coverage_details" not in policy:
+        raise HTTPException(status_code=422, detail="invalid policy: missing coverage_details")
+    return save_policy(policy)

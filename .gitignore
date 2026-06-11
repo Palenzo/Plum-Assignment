@@ -17,6 +17,11 @@ out/
 # Local data / DB
 *.db
 *.sqlite3
+backend/test_policy.json
+
+# Vendored design toolkit (regenerable via `npx impeccable skills install`)
+.claude/skills/
+.claude/settings.local.json
 
 # OS / editor
 .DS_Store
@@ -25,8 +30,7 @@ Thumbs.db
 .idea/
 
 # Provided assignment briefs (inputs — not part of the submission repo)
-# NOTE: ASSUMPTIONS.md is intentionally NOT ignored — it is a deliverable.
-README.md
+# NOTE: README.md and ASSUMPTIONS.md are OUR deliverables and ARE committed.
 plum_intern_assignment.md
 adjudication_rules.md
 sample_documents_guide.md

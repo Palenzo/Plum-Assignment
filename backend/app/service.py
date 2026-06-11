@@ -11,6 +11,7 @@ from .engine import adjudicate
 from .extraction import extract, to_claim_input
 from .gates import claim_signature, pre_extraction_gate
 from .models import ClaimInput, Decision
+from .review import review_if_concerned
 
 
 def _context(member_id: str, treatment_date: date, claim_amount: float) -> tuple[str, str]:
@@ -34,6 +35,7 @@ def adjudicate_and_store(db: Session, claim: ClaimInput) -> Decision:
         seen_signatures=repository.signatures(db), claim_id=claim_id,
     ) or adjudicate(claim, claim_id=claim_id)
 
+    decision = review_if_concerned(claim, decision)
     decision.claim_amount = claim.claim_amount
     repository.save(db, claim, decision, signature)
     return decision
@@ -65,6 +67,7 @@ def adjudicate_upload(db: Session, *, member_id: str, member_name: str,
         member_join_date=member_join_date, hospital=hospital,
         cashless_request=cashless_request, previous_claims_same_day=previous_claims_same_day)
     decision = adjudicate(claim, claim_id=claim_id)
+    decision = review_if_concerned(claim, decision)
     decision.claim_amount = claim_amount
     repository.save(db, claim, decision, signature)
     return decision
