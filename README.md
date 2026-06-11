@@ -6,6 +6,14 @@ checks them against the policy, and returns a clear decision — **approved,
 rejected, partially approved, or sent to a human** — with the amount, the reason,
 and a confidence score.
 
+## Live demo
+
+- **App:** _https://plum-opd-frontend.onrender.com_ ← paste your Render URL here
+- **API docs:** _https://plum-opd-backend.onrender.com/docs_
+
+> Hosted on Render's free tier, so the first request after idle may take ~50s to
+> wake the service. See [Deploy your own](#deploy-your-own-render) below.
+
 ## The one idea behind everything
 
 Insurance decisions have to be **accurate, repeatable, and explainable**. A
@@ -140,6 +148,21 @@ docker compose up --build
 
 App at <http://localhost:3000>, API at <http://localhost:8000/docs>. This runs in
 in-process mode; for the durable Temporal pipeline, see "Durable mode" below.
+
+### Deploy your own (Render)
+
+The repo ships a [`render.yaml`](render.yaml) blueprint that deploys **both**
+services (backend + frontend) with one click — Render builds them from the same
+Dockerfiles, so the cloud deployment includes Tesseract OCR too.
+
+1. Push this repo to GitHub.
+2. In Render: **New → Blueprint**, pick the repo, **Apply**.
+3. When prompted, paste your **`GROQ_API_KEY`** (the only secret).
+
+That's it. Render wires the frontend to the backend automatically, runs the
+pipeline in-process (no Temporal server needed), and gives each service a public
+URL. The database is ephemeral SQLite — fine for a demo; for persistence, add a
+Render Postgres and set `DATABASE_URL`.
 
 ### Run locally (without Docker)
 

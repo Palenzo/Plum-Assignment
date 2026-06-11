@@ -52,9 +52,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="OPD Claim Adjudication", version="0.1.0", lifespan=lifespan)
 
+# Local dev origins plus any explicit ones from CORS_ORIGINS (comma-separated).
+# Deployed frontends on Render are matched by regex so the backend needs no
+# knowledge of the exact frontend URL.
+_DEFAULT_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_extra_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_DEFAULT_ORIGINS + _extra_origins,
+    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_methods=["*"],
     allow_headers=["*"],
 )

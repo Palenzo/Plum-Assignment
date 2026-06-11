@@ -1,0 +1,43 @@
+# Render Blueprint — deploys the whole OPD app (backend + frontend) from one repo.
+#
+# Deploy:  Render Dashboard → New → Blueprint → pick this repo → Apply.
+# Then set the one secret it asks for: GROQ_API_KEY (https://console.groq.com/keys).
+#
+# Both services run from the existing Dockerfiles, so production gets the full
+# stack including Tesseract OCR. Temporal is off (the app falls back to the same
+# pipeline in-process), and the database is ephemeral SQLite — perfect for a demo.
+services:
+  # ---- Backend: FastAPI + rule engine + Agno/Groq ----
+  - type: web
+    name: plum-opd-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: singapore          # closest free region to India
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY       # secret — set in the dashboard when prompted
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: TEMPORAL_ENABLED   # in-process fallback; no Temporal server in the cloud
+        value: "false"
+      - key: AI_REVIEW_ENABLED
+        value: "true"
+
+  # ---- Frontend: Next.js ----
+  - type: web
+    name: plum-opd-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    region: singapore
+    envVars:
+      # Wired automatically to the backend's hostname; baked into the build.
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: plum-opd-backend
+          property: host

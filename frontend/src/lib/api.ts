@@ -1,6 +1,9 @@
 import type { ClaimInput, ClaimsPage, Decision, Explanation, PolicyDoc } from "./types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Render's `fromService` wiring supplies a bare host (no scheme); add https://
+// when one is missing so the value works whether it's a full URL or a hostname.
+const RAW_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const BASE = /^https?:\/\//.test(RAW_BASE) ? RAW_BASE : `https://${RAW_BASE}`;
 
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
