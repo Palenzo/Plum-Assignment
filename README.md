@@ -38,7 +38,11 @@ Concretely:
 ## What it does
 
 - 📄 **Reads real documents** — upload an image or PDF; OCR + an LLM pull out the
-  doctor, diagnosis, line items, and dates.
+  doctor, diagnosis, line items, and dates. OCR uses **Tesseract**, and **falls
+  back to a vision LLM** (OpenAI/Llama) when Tesseract isn't installed — so image
+  upload still works on a bare deploy. If neither is available, the API returns a
+  clean `503 OCR_UNAVAILABLE` instead of failing, and text-based PDFs work with
+  no OCR at all.
 - ⚖️ **Adjudicates deterministically** — a 5-step policy pipeline (eligibility →
   documents → coverage → limits → medical necessity) with co-pay, network discount,
   and partial-approval math.
@@ -226,6 +230,8 @@ Then run the backend with `TEMPORAL_ENABLED=true`.
 | `TEMPORAL_ENABLED` | `true` | Use Temporal when reachable (falls back if not) |
 | `AI_REVIEW_ENABLED` | `true` | Run the AI review team on approvable claims |
 | `TESSERACT_CMD` | auto-detected | Path to `tesseract.exe` if not on PATH |
+| `OPENAI_VISION_MODEL` | = `OPENAI_MODEL` | Vision model for the OCR fallback (gpt-4o reads images) |
+| `GROQ_VISION_MODEL` | `llama-4-scout` | Llama vision model for the OCR fallback when using Groq |
 | `DATABASE_URL` | `sqlite:///./claims.db` | Swap for Postgres in production |
 | `ADMIN_TOKEN` | `admin` | Password required to edit the policy (`/admin`) — **set a real one in production** |
 

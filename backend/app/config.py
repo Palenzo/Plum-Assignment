@@ -22,4 +22,12 @@ def settings() -> dict:
         "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
         "openai_api_key": os.getenv("OPENAI_API_KEY", ""),
         "openai_model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        # Vision-capable models for the OCR fallback (used when Tesseract is
+        # absent). OpenAI's gpt-4o family can read images, so it defaults to the
+        # main model; Groq's default Llama is text-only, so it falls back to a
+        # Llama vision model. Override with OPENAI_VISION_MODEL / GROQ_VISION_MODEL.
+        "openai_vision_model": os.getenv("OPENAI_VISION_MODEL")
+        or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        "groq_vision_model": os.getenv(
+            "GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
     }

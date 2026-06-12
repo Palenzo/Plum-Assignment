@@ -7,7 +7,19 @@ import type { ClaimInput, ClaimsPage, Decision, Explanation, PolicyDoc } from ".
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function asJson<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  if (!res.ok) {
+    // The backend returns {"error","code"} on failure; fall back to detail/raw
+    // text/status so a clean message always surfaces (never raw JSON).
+    const raw = await res.text();
+    let message = raw || res.statusText;
+    try {
+      const body = JSON.parse(raw);
+      message = body.error || body.message || body.detail || message;
+    } catch {
+      /* not JSON — keep the raw text */
+    }
+    throw new Error(message);
+  }
   return res.json() as Promise<T>;
 }
 

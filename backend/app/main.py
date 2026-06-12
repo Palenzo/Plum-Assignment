@@ -16,9 +16,11 @@ from . import repository
 from .config import settings
 from .llm import llm_available, model_name
 from .db import get_db, init_db
+from .errors import install_error_handlers
 from .explain import Explanation, explain_decision
-from .ingestion import ocr_document, tesseract_available
+from .ingestion import OcrUnavailable, ocr_available, ocr_document, tesseract_available
 from .models import ClaimInput, Decision
+from .vision import vision_available
 from .policy import load_policy, save_policy
 from .service import adjudicate_and_store, adjudicate_upload
 from .temporal.client import run_workflow
@@ -63,6 +65,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="OPD Claim Adjudication", version="0.1.0", lifespan=lifespan)
+install_error_handlers(app)
 
 # Local dev origins plus any explicit ones from CORS_ORIGINS (comma-separated).
 # Deployed frontends on Render are matched by regex so the backend needs no
@@ -87,10 +90,13 @@ def health() -> dict:
 @app.get("/api/status")
 def status() -> dict:
     """Live status — which capabilities are currently available."""
+    engine = ("tesseract" if tesseract_available()
+              else "llm-vision" if vision_available() else None)
     return {
         "status": "ok",
         "ai_available": llm_available(),
-        "ocr_available": tesseract_available(),
+        "ocr_available": ocr_available(),
+        "ocr_engine": engine,
         "temporal_enabled": TEMPORAL_ENABLED,
         "provider": settings()["provider"],
         "model": model_name(),
@@ -117,9 +123,17 @@ async def submit_documents(
     db: Session = Depends(get_db),
 ) -> Decision:
     doc_texts: dict[str, str] = {}
-    for label, upload in (("prescription", prescription), ("bill", bill)):
-        if upload is not None:
-            doc_texts[label] = ocr_document(upload.filename, await upload.read())
+    try:
+        for label, upload in (("prescription", prescription), ("bill", bill)):
+            if upload is not None:
+                doc_texts[label] = ocr_document(upload.filename, await upload.read())
+    except OcrUnavailable:
+        raise HTTPException(status_code=503, detail={
+            "code": "OCR_UNAVAILABLE",
+            "message": "Document scanning (OCR) is unavailable on this server. "
+                       "Submit the claim as JSON, upload a text-based PDF, or enable "
+                       "Tesseract / an LLM vision model.",
+        })
     metadata = ClaimInput(
         member_id=member_id, member_name=member_name, treatment_date=treatment_date,
         claim_amount=claim_amount, member_join_date=member_join_date, hospital=hospital,
