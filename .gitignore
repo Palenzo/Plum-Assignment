@@ -27,12 +27,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Provided assignment briefs (inputs — not part of the submission repo)
-# NOTE: README.md and ASSUMPTIONS.md are OUR deliverables and ARE committed.
-plum_intern_assignment.md
-adjudication_rules.md
-sample_documents_guide.md
-
-# Provided data files (root only — the app keeps its own copy under backend/app/data)
-/test_cases.json
-/policy_terms.json
+# Provided assignment briefs & data ARE committed (alongside our README.md and
+# ASSUMPTIONS.md) so reviewers can see the rules the engine implements and so the
+# eval harness + acceptance tests run on a fresh clone. See README "Testing".

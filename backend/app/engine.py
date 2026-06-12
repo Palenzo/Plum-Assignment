@@ -21,11 +21,18 @@ _REG = re.compile(r"^[A-Za-z0-9]+(?:/[A-Za-z0-9]+)+/\d{4}$")
 
 # Diagnosis-level exclusions reject the whole claim (the condition itself is
 # not covered). Cosmetic items are handled per-line below, not here.
+# Keywords are matched as substrings, so they are chosen to avoid false hits on
+# unrelated terms (e.g. "war" would match "warfarin", so we use "act of war").
 _DIAGNOSIS_EXCLUSIONS = {
     "Weight loss treatments": ("weight loss", "bariatric", "obesity", "diet plan"),
     "Infertility treatments": ("infertility", "ivf"),
     "Experimental treatments": ("experimental",),
-    "Alcoholism/drug abuse treatment": ("alcoholism", "drug abuse"),
+    "Alcoholism/drug abuse treatment": ("alcoholism", "drug abuse", "substance abuse"),
+    "Self-inflicted injuries": ("self-inflicted", "self inflicted", "self-harm", "self harm", "suicide"),
+    "Adventure sports injuries": ("adventure sport", "bungee", "skydiv", "paraglid", "mountaineer", "scuba"),
+    "War and nuclear risks": ("act of war", "war injury", "nuclear"),
+    "HIV/AIDS treatment": ("hiv", "aids", "antiretroviral"),
+    "LASIK surgery": ("lasik",),
 }
 _COSMETIC_ITEM = ("whitening", "cosmetic", "aesthetic", "botox")
 _PREAUTH_TESTS = ("mri", "ct scan")
@@ -101,7 +108,10 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
 
     category = _classify(claim)
 
-    # Step 1 — Eligibility: specific-ailment waiting periods.
+    # Step 1 — Eligibility: a specific-ailment waiting period if the diagnosis
+    # names one, otherwise the policy-wide initial waiting period. (Every
+    # specific-ailment period here is >= the initial one, so a satisfied
+    # specific ailment also clears the initial wait.)
     if claim.member_join_date and claim.prescription:
         diag = (claim.prescription.diagnosis or "").lower()
         for ailment, days in policy["waiting_periods"]["specific_ailments"].items():
@@ -114,7 +124,30 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
                         f"{ailment.title()} has {days}-day waiting period. "
                         f"Eligible from {eligible.isoformat()}",
                         "Resubmit on or after the eligibility date.")
+        initial = policy["waiting_periods"]["initial_waiting"]
+        eligible = claim.member_join_date + timedelta(days=initial)
+        if claim.treatment_date < eligible:
+            record("eligibility", "initial_waiting", False, f"{initial}d")
+            return reject(
+                ["WAITING_PERIOD"],
+                f"Policy has a {initial}-day initial waiting period. "
+                f"Eligible from {eligible.isoformat()}",
+                "Resubmit on or after the eligibility date.")
     record("eligibility", "waiting_period", True)
+
+    # Process — claims must be submitted within the policy's filing window. Only
+    # enforced when a submission date is supplied (the sample cases omit it).
+    if claim.submission_date:
+        window = policy["claim_requirements"]["submission_timeline_days"]
+        deadline = claim.treatment_date + timedelta(days=window)
+        if claim.submission_date > deadline:
+            record("process", "submission_timeline", False, f"{window}d")
+            return reject(
+                ["LATE_SUBMISSION"],
+                f"Claim submitted after the {window}-day filing window "
+                f"(deadline was {deadline.isoformat()}).",
+                "Claims must be filed within the submission window.")
+    record("process", "submission_timeline", True)
 
     # Step 2 — Documents: a prescription from a registered doctor is mandatory.
     if claim.prescription is None:
@@ -150,9 +183,15 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
                           "This condition is not covered under the policy.")
     record("coverage", "exclusion_scan", True)
 
-    if any(t in blob for t in _PREAUTH_TESTS):
-        record("coverage", "pre_authorisation", False)
-        return reject(["PRE_AUTH_MISSING"], "MRI/CT scans require pre-authorisation.",
+    # MRI/CT scans need pre-authorisation only above the diagnostic limit
+    # (₹10,000) — per TC007's note "MRI requires pre-authorization for claims
+    # above ₹10000". Smaller scans are covered like any diagnostic test. The
+    # payload carries no pre-auth token, so an over-threshold scan is rejected.
+    preauth_threshold = cov["diagnostic_tests"]["sub_limit"]
+    if any(t in blob for t in _PREAUTH_TESTS) and claim.claim_amount > preauth_threshold:
+        record("coverage", "pre_authorisation", False, f"amount={claim.claim_amount}")
+        return reject(["PRE_AUTH_MISSING"],
+                      f"MRI/CT scans above ₹{preauth_threshold} require pre-authorisation.",
                       "Obtain pre-authorisation before claiming.")
     record("coverage", "pre_authorisation", True)
 

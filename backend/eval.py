@@ -11,9 +11,12 @@ from pathlib import Path
 from app.engine import adjudicate
 from app.models import ClaimInput
 
-CASES = json.loads(
-    (Path(__file__).parents[1] / "test_cases.json").read_text(encoding="utf-8")
-)["test_cases"]
+CASES_PATH = Path(__file__).parents[1] / "test_cases.json"
+if not CASES_PATH.exists():
+    raise SystemExit(
+        f"test_cases.json not found at {CASES_PATH}. It ships in the repo root; "
+        "run this from a full checkout.")
+CASES = json.loads(CASES_PATH.read_text(encoding="utf-8"))["test_cases"]
 
 
 def run() -> int:

@@ -290,7 +290,18 @@ frontend/
   src/components/    # decision card, confidence meter, review panel, ...
 docs/                # architecture, decision flow, API
 ASSUMPTIONS.md       # documented calls on ambiguous/contradictory rules
+adjudication_rules.md  # the provided rules the engine implements (engine.py maps 1:1 to these)
+test_cases.json        # the 10 provided cases — eval.py and the acceptance suite read this
+policy_terms.json      # the provided policy (the app keeps its own copy under backend/app/data)
 ```
+
+> **Where the rules live.** The adjudication rules the engine enforces are in
+> [`adjudication_rules.md`](adjudication_rules.md) and [`policy_terms.json`](policy_terms.json);
+> [`backend/app/engine.py`](backend/app/engine.py) implements them step-for-step, and
+> [`ASSUMPTIONS.md`](ASSUMPTIONS.md) records every interpretation made where the rules and
+> sample cases were ambiguous. Rules exercised beyond the ten provided cases (initial waiting
+> period, the full exclusions list, LASIK, the MRI/CT pre-auth threshold, late submission) are
+> covered by [`backend/tests/test_engine_rules.py`](backend/tests/test_engine_rules.py).
 
 ## Notes & limitations
 

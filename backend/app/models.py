@@ -25,6 +25,7 @@ class ClaimInput(BaseModel):
     treatment_date: date
     claim_amount: float
     member_join_date: date | None = None
+    submission_date: date | None = None
     hospital: str | None = None
     cashless_request: bool = False
     previous_claims_same_day: int = 0
@@ -42,6 +43,7 @@ class ClaimInput(BaseModel):
             treatment_date=data["treatment_date"],
             claim_amount=data["claim_amount"],
             member_join_date=data.get("member_join_date"),
+            submission_date=data.get("submission_date"),
             hospital=data.get("hospital"),
             cashless_request=data.get("cashless_request", False),
             previous_claims_same_day=data.get("previous_claims_same_day", 0),
