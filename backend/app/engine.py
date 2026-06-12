@@ -10,7 +10,7 @@ provided rules and sample cases were ambiguous or contradictory.
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 
 from .models import AuditEntry, ClaimInput, Decision
 from .policy import load_policy
@@ -107,6 +107,18 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
                         confidence_score=_confidence("REJECTED", category), audit_trail=audit)
 
     category = _classify(claim)
+
+    # Date integrity — impossible dates are rejected before anything else. A
+    # treatment can't be dated in the future, and a member can't have joined
+    # after the treatment took place.
+    if claim.treatment_date > date.today():
+        record("eligibility", "treatment_date_valid", False, claim.treatment_date.isoformat())
+        return reject(["DATE_MISMATCH"], "Treatment date is in the future.",
+                      "Check the treatment date and resubmit.")
+    if claim.member_join_date and claim.member_join_date > claim.treatment_date:
+        record("eligibility", "join_date_valid", False, claim.member_join_date.isoformat())
+        return reject(["DATE_MISMATCH"], "Membership start date is after the treatment date.",
+                      "Check the membership and treatment dates and resubmit.")
 
     # Step 1 — Eligibility: a specific-ailment waiting period if the diagnosis
     # names one, otherwise the policy-wide initial waiting period. (Every

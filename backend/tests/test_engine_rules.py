@@ -115,6 +115,22 @@ def test_mri_above_threshold_needs_preauth():
     assert "PRE_AUTH_MISSING" in d.rejection_reasons
 
 
+# --- Date integrity: impossible dates are rejected ---------------------------
+
+def test_future_treatment_date_is_rejected():
+    c = _claim(treatment_date="2999-01-01")
+    d = adjudicate(c)
+    assert d.decision == "REJECTED"
+    assert "DATE_MISMATCH" in d.rejection_reasons
+
+
+def test_join_date_after_treatment_is_rejected():
+    c = _claim(join=date(2024, 11, 1), treatment_date="2024-10-01")  # joined after visit
+    d = adjudicate(c)
+    assert d.decision == "REJECTED"
+    assert "DATE_MISMATCH" in d.rejection_reasons
+
+
 # --- Late submission (policy_terms: submission_timeline_days = 30) -----------
 
 def test_late_submission_is_rejected():

@@ -99,6 +99,15 @@ regresses TC001-TC010:
   more than `submission_timeline_days` (30) after treatment, the claim is
   rejected with `LATE_SUBMISSION`. The sample cases omit this field, so it never
   fires for them.
+- **Registration year sanity.** The doctor-registration validator accepts the
+  `State/Number/Year` format *and* requires the year to be real — between 1900
+  and the treatment year (a doctor can't be registered after treating the
+  patient). This rejects `…/0000` or a future `…/2099` that the 4-digit pattern
+  alone would pass. All ten sample regs (2013–2019, treated in 2024) stay valid.
+- **Date integrity.** A treatment date in the future, or a `member_join_date`
+  later than the treatment date, is rejected with `DATE_MISMATCH` — these are
+  impossible and checked before any other rule. (The rules' `DATE_MISMATCH` is
+  the nearest enumerated code for an internal date inconsistency.)
 
 Exclusion keywords are matched as substrings, deliberately chosen to avoid false
 positives (e.g. the war exclusion uses `"act of war"`/`"war injury"`, never bare
