@@ -74,6 +74,29 @@ def test_warfarin_does_not_trip_the_war_exclusion():
     assert adjudicate(c).decision == "APPROVED"
 
 
+# --- Doctor registration year must be a real, plausible year ----------------
+
+@pytest.mark.parametrize("reg", ["KA/45678/0000", "KA/45678/9999", "KA/45678/2099"])
+def test_implausible_registration_year_is_invalid(reg):
+    c = _claim(treatment_date="2024-11-01")
+    c.prescription.doctor_reg = reg
+    d = adjudicate(c)
+    assert d.decision == "REJECTED"
+    assert "DOCTOR_REG_INVALID" in d.rejection_reasons
+
+
+def test_registration_year_not_after_treatment_year():
+    c = _claim(treatment_date="2024-11-01")
+    c.prescription.doctor_reg = "KA/45678/2025"  # registered after the visit
+    assert "DOCTOR_REG_INVALID" in adjudicate(c).rejection_reasons
+
+
+def test_plausible_registration_year_passes():
+    c = _claim(treatment_date="2024-11-01")
+    c.prescription.doctor_reg = "KA/45678/2015"
+    assert adjudicate(c).decision == "APPROVED"
+
+
 # --- MRI/CT pre-auth threshold (TC007 note: "above ₹10000") -----------------
 
 def test_mri_below_threshold_is_covered_without_preauth():

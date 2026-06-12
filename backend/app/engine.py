@@ -157,7 +157,12 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
     record("documents", "prescription_present", True)
 
     reg = (claim.prescription.doctor_reg or "").strip()
-    if not _REG.match(reg):
+    # Format State/Number/Year, and the year must be a real one — not later than
+    # the treatment (a doctor can't be registered after they treated the patient)
+    # and not implausibly old. This rejects "…/0000" or a future "…/2099" that
+    # the 4-digit pattern alone would wave through.
+    reg_year = int(reg.rsplit("/", 1)[-1]) if _REG.match(reg) else None
+    if reg_year is None or not (1900 <= reg_year <= claim.treatment_date.year):
         record("documents", "doctor_reg_valid", False, reg)
         return reject(["DOCTOR_REG_INVALID"], "Doctor registration number is missing or invalid.",
                       "Resubmit with a valid registration number.")
