@@ -44,8 +44,7 @@ services:
     region: singapore
     envVars:
       # Read at runtime by the API proxy (no CORS, no build-time baking).
+      # Explicit full URL: `fromService property: host` returns a bare hostname
+      # that resolves to an unreachable internal address, which surfaced as 502s.
       - key: BACKEND_URL
-        fromService:
-          type: web
-          name: plum-opd-backend
-          property: host
+        value: https://plum-opd-backend.onrender.com
