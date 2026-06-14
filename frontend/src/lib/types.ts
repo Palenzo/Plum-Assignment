@@ -30,6 +30,12 @@ export interface AuditEntry {
   detail: string;
 }
 
+export interface ConfidenceFactor {
+  label: string;
+  detail: string;
+  delta: number;
+}
+
 export interface Decision {
   claim_id: string;
   decision: Verdict;
@@ -42,6 +48,7 @@ export interface Decision {
   network_discount: number | null;
   cashless_approved: boolean | null;
   confidence_score: number;
+  confidence_factors: ConfidenceFactor[];
   notes: string;
   next_steps: string;
   audit_trail: AuditEntry[];

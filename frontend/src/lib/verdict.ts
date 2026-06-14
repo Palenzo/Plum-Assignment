@@ -9,6 +9,11 @@ export const VERDICT: Record<Verdict, { label: string; tone: Tone; blurb: string
 
 export type Tone = "ok" | "warn" | "bad" | "info";
 
+// Safe accessor: never returns undefined, so an unexpected decision string from
+// the API degrades to a readable label instead of crashing the page.
+export const verdictMeta = (v: Verdict) =>
+  VERDICT[v] ?? { label: String(v).replace(/_/g, " "), tone: "info" as Tone, blurb: "" };
+
 // Literal class strings so Tailwind's scanner includes them.
 export const TONE_CLASS: Record<Tone, { text: string; bg: string; fill: string }> = {
   ok: { text: "text-ok", bg: "bg-ok-bg", fill: "bg-ok" },

@@ -1,10 +1,13 @@
 """Typed claim input and adjudication decision models."""
 from __future__ import annotations
 
+import math
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .confidence import ConfidenceFactor
 
 Verdict = Literal["APPROVED", "REJECTED", "PARTIAL", "MANUAL_REVIEW"]
 
@@ -23,7 +26,11 @@ class ClaimInput(BaseModel):
     member_id: str
     member_name: str
     treatment_date: date
-    claim_amount: float
+    # A claim amount must be a real, positive, finite number. Rejecting
+    # Infinity/NaN/negative at the boundary stops a non-finite float from
+    # reaching the engine and being serialised back as bare `Infinity` (which
+    # is invalid JSON and breaks strict clients / the durable workflow round-trip).
+    claim_amount: float = Field(gt=0, allow_inf_nan=False)
     member_join_date: date | None = None
     submission_date: date | None = None
     hospital: str | None = None
@@ -31,6 +38,19 @@ class ClaimInput(BaseModel):
     previous_claims_same_day: int = 0
     prescription: Prescription | None = None
     bill: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("bill")
+    @classmethod
+    def _bill_amounts_finite(cls, bill: dict) -> dict:
+        # Same hazard as claim_amount: a numeric line item that is Infinity/NaN
+        # would flow through the engine and serialise back as bare `Infinity`
+        # (invalid JSON). Non-numeric values (e.g. test_names lists) are left
+        # alone — the engine ignores them.
+        for key, value in bill.items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool) \
+                    and not math.isfinite(value):
+                raise ValueError(f"bill amount '{key}' must be a finite number")
+        return bill
 
     @classmethod
     def from_case(cls, data: dict) -> "ClaimInput":
@@ -72,6 +92,7 @@ class Decision(BaseModel):
     network_discount: float | None = None
     cashless_approved: bool | None = None
     confidence_score: float = 1.0
+    confidence_factors: list[ConfidenceFactor] = Field(default_factory=list)
     notes: str = ""
     next_steps: str = ""
     audit_trail: list[AuditEntry] = Field(default_factory=list)

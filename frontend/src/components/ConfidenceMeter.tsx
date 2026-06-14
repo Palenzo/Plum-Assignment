@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { pct } from "@/lib/format";
+import type { ConfidenceFactor } from "@/lib/types";
 
-export function ConfidenceMeter({ score }: { score: number }) {
+export function ConfidenceMeter({
+  score,
+  factors = [],
+}: {
+  score: number;
+  factors?: ConfidenceFactor[];
+}) {
   const [width, setWidth] = useState(0);
   const low = score < 0.8;
 
@@ -25,6 +32,21 @@ export function ConfidenceMeter({ score }: { score: number }) {
         />
       </div>
       {low && <p className="mt-2 text-sm text-info">Lower confidence — routed for a human check.</p>}
+      {factors.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {factors.slice(0, 4).map((f, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs text-ink-muted">
+              <span
+                className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${f.delta < 0 ? "bg-warn" : "bg-ok"}`}
+              />
+              <span>
+                <span className="text-ink">{f.label}</span>
+                {f.detail ? ` — ${f.detail}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

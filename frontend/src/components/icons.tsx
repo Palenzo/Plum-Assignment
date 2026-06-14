@@ -60,4 +60,4 @@ const ICON: Record<Verdict, (p: Props) => React.ReactElement> = {
   MANUAL_REVIEW: Review,
 };
 
-export const verdictIcon = (v: Verdict) => ICON[v];
+export const verdictIcon = (v: Verdict) => ICON[v] ?? Review;

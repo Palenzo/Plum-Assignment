@@ -11,8 +11,9 @@ from pathlib import Path
 
 import pytest
 
+from app.confidence import Evidence
 from app.engine import adjudicate
-from app.models import ClaimInput
+from app.models import ClaimInput, Prescription
 
 CASES_PATH = Path(__file__).parents[2] / "test_cases.json"
 CASES = (
@@ -47,3 +48,28 @@ def test_expected_outcome(case):
         assert result.confidence_score < 0.8
     else:
         assert result.confidence_score >= 0.85
+
+
+def _borderline_claim() -> ClaimInput:
+    # A clean, approvable consultation sitting close to the per-claim limit.
+    return ClaimInput(
+        member_id="EMP", member_name="Test", treatment_date="2024-11-01", claim_amount=4900,
+        prescription=Prescription(doctor_reg="KA/45678/2015", diagnosis="Viral fever",
+                                  medicines_prescribed=["Paracetamol"]),
+        bill={"consultation_fee": 4900})
+
+
+def test_clean_evidence_approves_with_high_confidence():
+    result = adjudicate(_borderline_claim())
+    assert result.decision == "APPROVED"
+    assert result.confidence_score >= 0.85
+    assert result.confidence_factors  # the decision explains itself
+
+
+def test_blurry_scan_escalates_the_same_claim_to_manual_review():
+    # Identical claim, but read from a low-quality scan -> evidence too weak to
+    # pay out automatically, so confidence drops below threshold and it escalates.
+    result = adjudicate(_borderline_claim(), evidence=Evidence(ocr_quality=0.2))
+    assert result.decision == "MANUAL_REVIEW"
+    assert "LOW_CONFIDENCE" in result.flags
+    assert result.confidence_score < 0.7

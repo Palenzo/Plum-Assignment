@@ -14,11 +14,13 @@ from sqlalchemy.orm import Session
 
 from . import repository
 from .config import settings
+from .confidence import Evidence
 from .llm import llm_available, model_name
 from .db import get_db, init_db
 from .errors import install_error_handlers
 from .explain import Explanation, explain_decision
-from .ingestion import OcrUnavailable, ocr_available, ocr_document, tesseract_available
+from .ingestion import (OcrStats, OcrUnavailable, ocr_available,
+                        ocr_document_detailed, tesseract_available)
 from .models import ClaimInput, Decision
 from .vision import vision_available
 from .policy import load_policy, save_policy
@@ -40,12 +42,13 @@ def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
 
 
 async def _orchestrate(db: Session, claim: ClaimInput, doc_texts: dict[str, str],
-                       needs_extraction: bool) -> Decision:
+                       needs_extraction: bool, evidence: Evidence | None = None) -> Decision:
     """Run the claim through the durable workflow, falling back in-process."""
     if TEMPORAL_ENABLED:
         try:
-            return await run_workflow(
-                WorkflowInput(claim=claim, doc_texts=doc_texts, needs_extraction=needs_extraction))
+            return await run_workflow(WorkflowInput(
+                claim=claim, doc_texts=doc_texts, needs_extraction=needs_extraction,
+                evidence=evidence))
         except Exception as exc:  # Temporal unreachable — keep the app working
             print(f"[temporal] unavailable, running in-process: {exc}")
     if needs_extraction:
@@ -54,7 +57,7 @@ async def _orchestrate(db: Session, claim: ClaimInput, doc_texts: dict[str, str]
             treatment_date=claim.treatment_date, claim_amount=claim.claim_amount,
             doc_texts=doc_texts, member_join_date=claim.member_join_date, hospital=claim.hospital,
             cashless_request=claim.cashless_request,
-            previous_claims_same_day=claim.previous_claims_same_day)
+            previous_claims_same_day=claim.previous_claims_same_day, evidence=evidence)
     return adjudicate_and_store(db, claim)
 
 
@@ -123,10 +126,13 @@ async def submit_documents(
     db: Session = Depends(get_db),
 ) -> Decision:
     doc_texts: dict[str, str] = {}
+    stats_parts: list[OcrStats] = []
     try:
         for label, upload in (("prescription", prescription), ("bill", bill)):
             if upload is not None:
-                doc_texts[label] = ocr_document(upload.filename, await upload.read())
+                text, stats = ocr_document_detailed(upload.filename, await upload.read())
+                doc_texts[label] = text
+                stats_parts.append(stats)
     except OcrUnavailable:
         raise HTTPException(status_code=503, detail={
             "code": "OCR_UNAVAILABLE",
@@ -134,11 +140,16 @@ async def submit_documents(
                        "Submit the claim as JSON, upload a text-based PDF, or enable "
                        "Tesseract / an LLM vision model.",
         })
+    # Document read-quality feeds the confidence model (and may escalate a blurry scan).
+    evidence: Evidence | None = None
+    if stats_parts:
+        combined = OcrStats.combine(stats_parts)
+        evidence = Evidence(ocr_quality=combined.mean_conf, ocr_fallback=combined.used_fallback)
     metadata = ClaimInput(
         member_id=member_id, member_name=member_name, treatment_date=treatment_date,
         claim_amount=claim_amount, member_join_date=member_join_date, hospital=hospital,
         cashless_request=cashless_request, previous_claims_same_day=previous_claims_same_day)
-    return await _orchestrate(db, metadata, doc_texts, needs_extraction=True)
+    return await _orchestrate(db, metadata, doc_texts, needs_extraction=True, evidence=evidence)
 
 
 @app.get("/api/claims/{claim_id}", response_model=Decision)

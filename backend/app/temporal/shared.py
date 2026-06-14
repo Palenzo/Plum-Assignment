@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from ..confidence import Evidence
 from ..models import ClaimInput
 
 TASK_QUEUE = "opd-adjudication"
@@ -17,3 +18,4 @@ class WorkflowInput(BaseModel):
     claim: ClaimInput                       # metadata always; full claim on the JSON path
     doc_texts: dict[str, str] = Field(default_factory=dict)  # OCR text per document (upload path)
     needs_extraction: bool = False          # True => run the LLM extraction step
+    evidence: Evidence | None = None        # OCR read-quality for the confidence model

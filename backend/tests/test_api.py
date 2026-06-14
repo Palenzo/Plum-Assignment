@@ -44,6 +44,18 @@ def test_unknown_claim_returns_404(client):
     assert client.get("/api/claims/CLM_UNKNOWN").status_code == 404
 
 
+def test_non_finite_or_negative_amount_is_rejected_at_boundary(client):
+    # Infinity/NaN/negative/zero must fail validation (422) rather than reach the
+    # engine and be serialised back as bare `Infinity` (invalid JSON / workflow hang).
+    for bad in ("Infinity", "NaN", "-1", "0"):
+        body = '{"member_id":"X","member_name":"Y","treatment_date":"2024-11-01",' \
+               f'"claim_amount":{bad}}}'
+        resp = client.post("/api/claims/json", content=body,
+                           headers={"content-type": "application/json"})
+        assert resp.status_code == 422, f"{bad} should be rejected, got {resp.status_code}"
+        assert resp.json()["code"] == "VALIDATION_ERROR"
+
+
 def test_claims_are_paginated(client):
     for i in range(3):
         payload = {**TC001, "member_id": f"EMP-P{i}", "claim_amount": 1500 + i * 100,

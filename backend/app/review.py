@@ -12,6 +12,7 @@ import os
 
 from pydantic import BaseModel, Field, field_validator
 
+from .confidence import EvidenceSignals, score
 from .llm import llm_available
 from .models import ClaimInput, Decision
 
@@ -63,10 +64,16 @@ def apply_review(decision: Decision, assessment: ReviewAssessment) -> Decision:
     if assessment.necessity_reason:
         notes = f"{notes} AI review: {assessment.necessity_reason}".strip()
 
+    # Confidence reflects the AI's own certainty that review is warranted (folded
+    # in here for the first time), always below the manual-review ceiling.
+    conf, factors = score(EvidenceSignals(
+        decision="MANUAL_REVIEW", ai_confidence=assessment.overall_confidence, ai_concern=True))
+
     return decision.model_copy(update={
         "decision": "MANUAL_REVIEW",
         "flags": flags,
-        "confidence_score": min(decision.confidence_score, 0.7),
+        "confidence_score": conf,
+        "confidence_factors": factors,
         "notes": notes,
         "next_steps": "A claims officer will review the flagged concerns.",
     })

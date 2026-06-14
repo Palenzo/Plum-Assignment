@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
+from .confidence import Evidence, EvidenceSignals, LOW_CONFIDENCE_THRESHOLD, score
 from .models import AuditEntry, ClaimInput, Decision
 from .policy import load_policy
 
@@ -82,29 +83,57 @@ def _sub_limit(category: str, policy: dict) -> float:
     return policy["coverage_details"][_SUBLIMIT_KEY[category]]["sub_limit"]
 
 
-def _confidence(decision: str, category: str) -> float:
-    if decision == "MANUAL_REVIEW":
-        return 0.65
-    if decision == "REJECTED":
-        return 0.97
-    if decision == "PARTIAL":
-        return 0.92
-    return 0.89 if category == "alternative" else 0.93
+def _missing_fields(claim: ClaimInput) -> tuple[str, ...]:
+    """Adjudication-relevant fields that came back empty (weaken the evidence)."""
+    p = claim.prescription
+    missing: list[str] = []
+    if not (p and (p.diagnosis or p.treatment)):
+        missing.append("diagnosis")
+    if not (p and p.doctor_reg):
+        missing.append("doctor registration")
+    if not _line_items(claim.bill):
+        missing.append("bill items")
+    return tuple(missing)
+
+
+def _margin(value: float, limit: float) -> float | None:
+    """Relative headroom (0..1) of a value under its binding limit."""
+    if not limit:
+        return None
+    return max(0.0, (limit - value) / limit)
 
 
 def adjudicate(claim: ClaimInput, policy: dict | None = None,
-               claim_id: str = "CLM_TEST") -> Decision:
+               claim_id: str = "CLM_TEST", evidence: Evidence | None = None) -> Decision:
     policy = policy or load_policy()
     cov = policy["coverage_details"]
     audit: list[AuditEntry] = []
+    missing = _missing_fields(claim)
 
     def record(step: str, rule: str, passed: bool, detail: str = "") -> None:
         audit.append(AuditEntry(step=step, rule=rule, passed=passed, detail=detail))
 
     def reject(reasons: list[str], notes: str, next_steps: str) -> Decision:
+        conf, factors = score(EvidenceSignals(decision="REJECTED", hard_rule=True))
         return Decision(claim_id=claim_id, decision="REJECTED", rejection_reasons=reasons,
-                        notes=notes, next_steps=next_steps,
-                        confidence_score=_confidence("REJECTED", category), audit_trail=audit)
+                        notes=notes, next_steps=next_steps, confidence_score=conf,
+                        confidence_factors=factors, audit_trail=audit)
+
+    def settle(decision: str, *, amount_margin: float | None = None, **kwargs) -> Decision:
+        """Build an approval/partial with a computed confidence. If the evidence
+        is too weak (sub-threshold), escalate to a human instead of paying out."""
+        conf, factors = score(EvidenceSignals(
+            decision=decision, amount_margin=amount_margin,
+            missing_fields=missing, evidence=evidence))
+        if conf < LOW_CONFIDENCE_THRESHOLD:
+            record("confidence", "low_confidence", False, f"{conf:.2f}")
+            return Decision(
+                claim_id=claim_id, decision="MANUAL_REVIEW", flags=["LOW_CONFIDENCE"],
+                notes="Evidence is too unclear or incomplete to decide automatically.",
+                next_steps="A claims officer will verify the documents.",
+                confidence_score=conf, confidence_factors=factors, audit_trail=audit)
+        return Decision(claim_id=claim_id, decision=decision, confidence_score=conf,
+                        confidence_factors=factors, audit_trail=audit, **kwargs)
 
     category = _classify(claim)
 
@@ -183,12 +212,13 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
     # Safety first — fraud / high value routes to a human before any approval.
     if claim.previous_claims_same_day >= 2 or claim.claim_amount > 25000:
         record("fraud", "anomaly_scan", False, f"same_day={claim.previous_claims_same_day}")
+        conf, factors = score(EvidenceSignals(decision="MANUAL_REVIEW"))
         return Decision(
             claim_id=claim_id, decision="MANUAL_REVIEW",
             flags=["Multiple claims same day", "Unusual pattern detected"],
             notes="Routed to a claims officer for manual review.",
             next_steps="A reviewer will assess this claim.",
-            confidence_score=_confidence("MANUAL_REVIEW", category), audit_trail=audit)
+            confidence_score=conf, confidence_factors=factors, audit_trail=audit)
     record("fraud", "anomaly_scan", True)
 
     # Step 3 — Coverage: excluded conditions, then pre-authorisation.
@@ -218,15 +248,15 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
     excluded = [(n, a) for n, a in items if any(k in n.lower() for k in _COSMETIC_ITEM)]
     if excluded:
         covered = sum(a for n, a in items if (n, a) not in excluded)
-        approved = min(covered, _sub_limit(category, policy))
+        sub_limit = _sub_limit(category, policy)
+        approved = min(covered, sub_limit)
         record("limits", "partial_split", True, f"covered={covered}")
-        return Decision(
-            claim_id=claim_id, decision="PARTIAL", approved_amount=approved,
+        return settle(
+            "PARTIAL", amount_margin=_margin(covered, sub_limit), approved_amount=approved,
             rejected_items=[f"{n.replace('_', ' ').capitalize()} - cosmetic procedure"
                             for n, _ in excluded],
             notes="Covered items approved; cosmetic items rejected.",
-            next_steps="Cosmetic items are not reimbursable.",
-            confidence_score=_confidence("PARTIAL", category), audit_trail=audit)
+            next_steps="Cosmetic items are not reimbursable.")
 
     if claim.claim_amount > cov["per_claim_limit"]:
         record("limits", "per_claim_limit", False)
@@ -249,11 +279,11 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
         cashless = bool(claim.cashless_request
                         and total <= policy["cashless_facilities"]["instant_approval_limit"])
         record("settlement", "network_discount", True, f"discount={discount}")
-        return Decision(
-            claim_id=claim_id, decision="APPROVED", approved_amount=total - discount,
-            network_discount=discount, cashless_approved=cashless or None,
-            notes="Approved at network hospital.", next_steps="Reimbursement will be processed.",
-            confidence_score=_confidence("APPROVED", category), audit_trail=audit)
+        return settle(
+            "APPROVED", amount_margin=_margin(total, cov["per_claim_limit"]),
+            approved_amount=total - discount, network_discount=discount,
+            cashless_approved=cashless or None,
+            notes="Approved at network hospital.", next_steps="Reimbursement will be processed.")
 
     deductions: dict[str, float] = {}
     approved = total
@@ -262,7 +292,7 @@ def adjudicate(claim: ClaimInput, policy: dict | None = None,
         deductions["copay"] = copay
         approved = total - copay
     record("settlement", "co_pay", True, f"deductions={deductions}")
-    return Decision(
-        claim_id=claim_id, decision="APPROVED", approved_amount=approved, deductions=deductions,
-        notes="Claim approved within policy limits.", next_steps="Reimbursement will be processed.",
-        confidence_score=_confidence("APPROVED", category), audit_trail=audit)
+    return settle(
+        "APPROVED", amount_margin=_margin(total, cov["per_claim_limit"]),
+        approved_amount=approved, deductions=deductions,
+        notes="Claim approved within policy limits.", next_steps="Reimbursement will be processed.")

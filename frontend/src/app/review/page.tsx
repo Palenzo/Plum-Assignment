@@ -47,7 +47,7 @@ export default function ReviewQueuePage() {
       <div className="mt-8">
         {error && <p className="rounded-lg bg-bad-bg px-4 py-3 text-sm text-bad">{error}</p>}
         {!error && items === null && <div className="h-24 animate-pulse rounded-2xl border border-border bg-surface" />}
-        {items?.length === 0 && (
+        {!error && items?.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border p-10 text-center">
             <p className="font-display text-lg font-medium">Nothing waiting for review</p>
             <p className="mt-1.5 text-sm text-ink-muted">Escalated claims will appear here.</p>

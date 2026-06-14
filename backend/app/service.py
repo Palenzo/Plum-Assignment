@@ -7,6 +7,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from . import repository
+from .confidence import Evidence
 from .engine import adjudicate
 from .extraction import extract, to_claim_input
 from .gates import claim_signature, pre_extraction_gate
@@ -45,7 +46,8 @@ def adjudicate_upload(db: Session, *, member_id: str, member_name: str,
                       treatment_date: date, claim_amount: float, doc_texts: dict[str, str],
                       member_join_date: date | None = None, hospital: str | None = None,
                       cashless_request: bool = False,
-                      previous_claims_same_day: int = 0) -> Decision:
+                      previous_claims_same_day: int = 0,
+                      evidence: Evidence | None = None) -> Decision:
     """Upload path: gate on metadata (before OCR cost), then OCR -> extract -> engine."""
     claim_id, signature = _context(member_id, treatment_date, claim_amount)
 
@@ -66,7 +68,7 @@ def adjudicate_upload(db: Session, *, member_id: str, member_name: str,
         treatment_date=treatment_date, claim_amount=claim_amount,
         member_join_date=member_join_date, hospital=hospital,
         cashless_request=cashless_request, previous_claims_same_day=previous_claims_same_day)
-    decision = adjudicate(claim, claim_id=claim_id)
+    decision = adjudicate(claim, claim_id=claim_id, evidence=evidence)
     decision = review_if_concerned(claim, decision)
     decision.claim_amount = claim_amount
     repository.save(db, claim, decision, signature)

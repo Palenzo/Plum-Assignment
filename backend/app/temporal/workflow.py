@@ -51,7 +51,7 @@ class AdjudicateClaimWorkflow:
                 start_to_close_timeout=timedelta(seconds=90), retry_policy=_RETRY)
 
         decision = await workflow.execute_activity(
-            activities.adjudicate_activity, args=[claim, claim_id], **_SHORT)
+            activities.adjudicate_activity, args=[claim, claim_id, inp.evidence], **_SHORT)
         decision.claim_amount = claim.claim_amount
 
         # AI review team — may escalate an approvable claim to a human.

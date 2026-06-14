@@ -9,6 +9,7 @@ from __future__ import annotations
 from temporalio import activity
 
 from .. import repository
+from ..confidence import Evidence
 from ..db import SessionLocal
 from ..engine import adjudicate
 from ..extraction import extract, to_claim_input
@@ -44,8 +45,9 @@ def extract_activity(doc_texts: dict[str, str], metadata: ClaimInput) -> ClaimIn
 
 
 @activity.defn
-def adjudicate_activity(claim: ClaimInput, claim_id: str) -> Decision:
-    return adjudicate(claim, claim_id=claim_id)
+def adjudicate_activity(claim: ClaimInput, claim_id: str,
+                        evidence: Evidence | None = None) -> Decision:
+    return adjudicate(claim, claim_id=claim_id, evidence=evidence)
 
 
 @activity.defn

@@ -21,9 +21,12 @@ export default function AdminPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
 
-  // Restore a previously verified session (cleared when the tab closes).
+  // Restore a previously verified session (cleared when the tab closes). This
+  // must run post-mount: sessionStorage is unavailable during SSR/prerender, and
+  // reading it in a lazy useState initializer would cause a hydration mismatch.
   useEffect(() => {
     const saved = sessionStorage.getItem("admin_token");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional client-only session restore
     if (saved) setToken(saved);
   }, []);
 
@@ -77,9 +80,9 @@ export default function AdminPage() {
       <section className="mt-8 rounded-2xl border border-border p-5 sm:p-6">
         <h2 className="text-lg">Overall limits</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field label="Annual limit" value={cov.annual_limit} onChange={(v) => update((p) => { p.coverage_details.annual_limit = v; })} />
-          <Field label="Per-claim limit" value={cov.per_claim_limit} onChange={(v) => update((p) => { p.coverage_details.per_claim_limit = v; })} />
-          <Field label="Family floater" value={cov.family_floater_limit} onChange={(v) => update((p) => { p.coverage_details.family_floater_limit = v; })} />
+          <Field label="Annual limit" value={cov.annual_limit ?? 0} onChange={(v) => update((p) => { p.coverage_details.annual_limit = v; })} />
+          <Field label="Per-claim limit" value={cov.per_claim_limit ?? 0} onChange={(v) => update((p) => { p.coverage_details.per_claim_limit = v; })} />
+          <Field label="Family floater" value={cov.family_floater_limit ?? 0} onChange={(v) => update((p) => { p.coverage_details.family_floater_limit = v; })} />
         </div>
       </section>
 
@@ -105,7 +108,7 @@ export default function AdminPage() {
         <h2 className="text-lg">Exclusions</h2>
         <p className="mt-1 text-sm text-ink-muted">One per line. These conditions are never covered.</p>
         <textarea
-          value={policy.exclusions.join("\n")}
+          value={(policy.exclusions ?? []).join("\n")}
           onChange={(e) => update((p) => { p.exclusions = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean); })}
           rows={8}
           className="mt-3 w-full rounded-md border border-border bg-bg px-3 py-2 font-mono text-sm text-ink focus:border-primary focus-visible:outline-none"

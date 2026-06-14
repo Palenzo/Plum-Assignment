@@ -1,5 +1,5 @@
 import type { Decision } from "@/lib/types";
-import { VERDICT, reasonLabel } from "@/lib/verdict";
+import { reasonLabel, verdictMeta } from "@/lib/verdict";
 import { AuditTrail } from "./AuditTrail";
 import { ConfidenceMeter } from "./ConfidenceMeter";
 import { ExplainPanel } from "./ExplainPanel";
@@ -7,7 +7,7 @@ import { MoneyBreakdown } from "./MoneyBreakdown";
 import { VerdictBadge } from "./VerdictBadge";
 
 export function DecisionCard({ decision }: { decision: Decision }) {
-  const v = VERDICT[decision.decision];
+  const v = verdictMeta(decision.decision);
   const showMoney = decision.decision === "APPROVED" || decision.decision === "PARTIAL";
 
   return (
@@ -57,7 +57,7 @@ export function DecisionCard({ decision }: { decision: Decision }) {
       )}
 
       <div className="mt-6">
-        <ConfidenceMeter score={decision.confidence_score} />
+        <ConfidenceMeter score={decision.confidence_score} factors={decision.confidence_factors} />
       </div>
 
       {decision.next_steps && (
