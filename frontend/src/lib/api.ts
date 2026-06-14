@@ -61,11 +61,15 @@ export const api = {
   submitUpload: (form: FormData) =>
     fetch(`${BASE}/api/claims`, { method: "POST", body: form }).then((r) => asJson<Decision>(r)),
 
-  listClaims: (opts: { limit?: number; offset?: number; status?: string } = {}) => {
+  listClaims: (
+    opts: { limit?: number; offset?: number; status?: string; sort?: string; order?: string } = {},
+  ) => {
     const params = new URLSearchParams();
     if (opts.limit != null) params.set("limit", String(opts.limit));
     if (opts.offset != null) params.set("offset", String(opts.offset));
     if (opts.status) params.set("status", opts.status);
+    if (opts.sort) params.set("sort", opts.sort);
+    if (opts.order) params.set("order", opts.order);
     return fetch(`${BASE}/api/claims?${params}`, { cache: "no-store" }).then((r) => asJson<ClaimsPage>(r));
   },
 

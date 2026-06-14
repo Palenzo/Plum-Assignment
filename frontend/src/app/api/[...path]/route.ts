@@ -44,7 +44,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
   const startedAt = Date.now();
-  log(`→ ${req.method} ${target}`);
+  log(`-> ${req.method} ${target}`);
   try {
     const res = await fetch(target, {
       method: req.method,
@@ -54,7 +54,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
     });
 
     const body = await res.arrayBuffer();
-    log(`← ${res.status} ${req.method} ${target} (${Date.now() - startedAt}ms)`);
+    log(`<- ${res.status} ${req.method} ${target} (${Date.now() - startedAt}ms)`);
     return new Response(body, {
       status: res.status,
       headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
@@ -63,7 +63,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
     // Backend unreachable (wrong BACKEND_URL, cold start, DNS, network). Log the
     // real cause and return a clean 502 envelope instead of an opaque Next 500.
     const cause = err instanceof Error ? err.cause ?? err.message : err;
-    console.error(`[proxy] FAILED ${req.method} ${target} →`, cause);
+    console.error(`[proxy] FAILED ${req.method} ${target} ->`, cause);
     return new Response(
       JSON.stringify({
         error: "Backend is unreachable. Check BACKEND_URL and that the backend is up.",

@@ -15,7 +15,19 @@ from .models import ClaimInput, Prescription
 _INSTRUCTIONS = (
     "You read Indian OPD medical prescriptions and bills and return structured "
     "data. Never guess or invent values — use null when a field is absent. Put "
-    "every billed charge into line_items with its name and numeric amount."
+    "every billed charge into line_items with its name and numeric amount.\n\n"
+    "Normalise what you read to standard clinical terms so a downstream rule "
+    "engine can match it reliably (it matches exact keywords, so spelling and "
+    "wording matter):\n"
+    "- Fix obvious OCR typos and misspellings: 'teeth witening' -> 'teeth "
+    "whitening', 'cosmetik' -> 'cosmetic', 'root canel' -> 'root canal'.\n"
+    "- Use the canonical name for each diagnosis, treatment, procedure and "
+    "line-item, preserving the meaning: tooth bleaching -> 'teeth whitening'; "
+    "dental scaling/polishing -> 'dental cleaning (scaling)'; a CT/MRI scan -> "
+    "'MRI scan' / 'CT scan'. Keep the words 'cosmetic'/'aesthetic' when the item "
+    "is cosmetic.\n"
+    "- Only correct spelling and terminology. Never change amounts, dates, "
+    "member or doctor names, or registration numbers."
 )
 
 

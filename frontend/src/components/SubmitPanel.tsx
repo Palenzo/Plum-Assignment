@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ClaimInput } from "@/lib/types";
 import { SAMPLES } from "@/lib/samples";
 import { FileText, Sparkles, Upload } from "./icons";
+import { UploadReview } from "./UploadReview";
 
 type Mode = "sample" | "upload";
 
@@ -27,9 +28,17 @@ export function SubmitPanel({
   const [amount, setAmount] = useState("1500");
   const [rx, setRx] = useState<File | null>(null);
   const [bill, setBill] = useState<File | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
+  // Uploading is a two-step flow: submitting the form opens a review screen, and
+  // only confirming there actually sends the documents to the backend.
   function submitUpload(e: React.FormEvent) {
     e.preventDefault();
+    if (!rx) return;
+    setReviewing(true);
+  }
+
+  function confirmUpload() {
     const form = new FormData();
     form.append("member_id", memberId);
     form.append("member_name", name || "Member");
@@ -37,7 +46,21 @@ export function SubmitPanel({
     form.append("claim_amount", amount);
     if (rx) form.append("prescription", rx);
     if (bill) form.append("bill", bill);
+    setReviewing(false);
     onUpload(form);
+  }
+
+  if (reviewing && mode === "upload" && rx) {
+    return (
+      <UploadReview
+        data={{ memberId, name, date, amount }}
+        prescription={rx}
+        bill={bill}
+        busy={busy}
+        onBack={() => setReviewing(false)}
+        onConfirm={confirmUpload}
+      />
+    );
   }
 
   return (
@@ -103,7 +126,7 @@ export function SubmitPanel({
             disabled={busy || !rx}
             className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
-            {busy ? "Adjudicating…" : "Submit claim"}
+            {busy ? "Adjudicating…" : "Review claim"}
           </button>
         </form>
       )}

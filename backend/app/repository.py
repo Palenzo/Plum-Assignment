@@ -24,12 +24,23 @@ def get(db: Session, claim_id: str) -> ClaimRecord | None:
     return db.query(ClaimRecord).filter(ClaimRecord.claim_id == claim_id).first()
 
 
+# Columns the list view is allowed to sort by (whitelist — guards the query).
+SORT_COLUMNS = {
+    "created_at": ClaimRecord.created_at,
+    "claim_amount": ClaimRecord.claim_amount,
+    "approved_amount": ClaimRecord.approved_amount,
+}
+
+
 def list_all(db: Session, *, limit: int = 10, offset: int = 0,
-             status: str | None = None) -> list[ClaimRecord]:
+             status: str | None = None, sort: str = "created_at",
+             order: str = "desc") -> list[ClaimRecord]:
     query = db.query(ClaimRecord)
     if status:
         query = query.filter(ClaimRecord.decision == status)
-    return query.order_by(ClaimRecord.created_at.desc()).offset(offset).limit(limit).all()
+    column = SORT_COLUMNS.get(sort, ClaimRecord.created_at)
+    column = column.asc() if order == "asc" else column.desc()
+    return query.order_by(column).offset(offset).limit(limit).all()
 
 
 def count_claims(db: Session, *, status: str | None = None) -> int:

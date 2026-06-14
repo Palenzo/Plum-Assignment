@@ -92,7 +92,7 @@ async def _log_requests(request, call_next):
     response = await call_next(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
     level = logging.DEBUG if request.url.path == "/health" else logging.INFO
-    log.log(level, "%s %s → %d (%.1f ms)",
+    log.log(level, "%s %s -> %d (%.1f ms)",
             request.method, request.url.path, response.status_code, elapsed_ms)
     return response
 
@@ -196,10 +196,15 @@ def explain_claim(claim_id: str, db: Session = Depends(get_db)) -> Explanation:
 
 @app.get("/api/claims")
 def list_claims(limit: int = 10, offset: int = 0, status: str | None = None,
+                sort: str = "created_at", order: str = "desc",
                 db: Session = Depends(get_db)) -> dict:
     limit = max(1, min(limit, 50))
     offset = max(0, offset)
-    records = repository.list_all(db, limit=limit, offset=offset, status=status)
+    if sort not in repository.SORT_COLUMNS:
+        sort = "created_at"
+    order = "asc" if order == "asc" else "desc"
+    records = repository.list_all(db, limit=limit, offset=offset, status=status,
+                                  sort=sort, order=order)
     return {
         "items": [
             {"claim_id": r.claim_id, "member_name": r.member_name, "decision": r.decision,
