@@ -17,6 +17,10 @@ services:
     region: singapore          # closest free region to India
     healthCheckPath: /health
     envVars:
+      # Logging mode. Production = INFO. To debug, set LOG_LEVEL=DEBUG in the
+      # dashboard (or flip APP_ENV to development) for verbose request logs.
+      - key: APP_ENV
+        value: production
       # LLM provider: set OPENAI_API_KEY to use OpenAI, or GROQ_API_KEY for Groq
       # (auto-detected — OpenAI wins if both are present).
       - key: OPENAI_API_KEY     # secret — set in the dashboard when prompted
@@ -48,3 +52,7 @@ services:
       # that resolves to an unreachable internal address, which surfaced as 502s.
       - key: BACKEND_URL
         value: https://plum-opd-backend.onrender.com
+      # Logging mode. Production keeps [proxy] logs quiet; to debug a deploy set
+      # PROXY_DEBUG=true in the dashboard for verbose per-request proxy logs.
+      - key: APP_ENV
+        value: production

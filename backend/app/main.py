@@ -1,8 +1,10 @@
 """FastAPI surface for claim submission and status."""
 from __future__ import annotations
 
+import logging
 import os
 import secrets
+import time
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
@@ -69,6 +71,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="OPD Claim Adjudication", version="0.1.0", lifespan=lifespan)
 install_error_handlers(app)
+
+# --- Logging: level follows the dev/prod toggle (APP_ENV / LOG_LEVEL) ---
+_cfg = settings()
+logging.basicConfig(
+    level=_cfg["log_level"],
+    format="%(asctime)s %(levelname)-7s %(name)s | %(message)s",
+)
+log = logging.getLogger("opd")
+log.setLevel(_cfg["log_level"])
+log.info("Backend starting — app_env=%s log_level=%s provider=%s",
+         _cfg["app_env"], _cfg["log_level"], _cfg["provider"])
+
+
+@app.middleware("http")
+async def _log_requests(request, call_next):
+    """Log every request with status + timing. Render's frequent /health pings
+    log at DEBUG so they don't flood production logs (visible in development)."""
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    level = logging.DEBUG if request.url.path == "/health" else logging.INFO
+    log.log(level, "%s %s → %d (%.1f ms)",
+            request.method, request.url.path, response.status_code, elapsed_ms)
+    return response
 
 # Local dev origins plus any explicit ones from CORS_ORIGINS (comma-separated).
 # Deployed frontends on Render are matched by regex so the backend needs no

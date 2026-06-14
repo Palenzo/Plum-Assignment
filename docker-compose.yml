@@ -12,6 +12,8 @@ services:
   backend:
     build: ./backend
     environment:
+      # Verbose logs by default for local compose; override with APP_ENV=production.
+      - APP_ENV=${APP_ENV:-development}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
@@ -30,6 +32,8 @@ services:
     environment:
       # The Next.js server proxies /api/* here (service-to-service on the compose network).
       - BACKEND_URL=http://backend:8000
+      # Verbose [proxy] request logging for local debugging.
+      - APP_ENV=${APP_ENV:-development}
     ports:
       - "3000:3000"
 

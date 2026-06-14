@@ -16,8 +16,14 @@ def settings() -> dict:
     if not provider:
         # Auto-detect: prefer OpenAI when its key is present, otherwise Groq.
         provider = "openai" if os.getenv("OPENAI_API_KEY") else "groq"
+    app_env = os.getenv("APP_ENV", "production").strip().lower()
+    log_level = (os.getenv("LOG_LEVEL", "").strip().upper()
+                 or ("DEBUG" if app_env == "development" else "INFO"))
     return {
         "provider": provider,
+        # Dev/prod toggle + resolved log level (LOG_LEVEL overrides the default).
+        "app_env": app_env,
+        "log_level": log_level,
         "groq_api_key": os.getenv("GROQ_API_KEY", ""),
         "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
         "openai_api_key": os.getenv("OPENAI_API_KEY", ""),
