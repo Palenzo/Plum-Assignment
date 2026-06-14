@@ -6,21 +6,48 @@ import type { ClaimInput, ClaimsPage, Decision, Explanation, PolicyDoc } from ".
 // directly (then the backend must allow that origin via CORS).
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-async function asJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    // The backend returns {"error","code"} on failure; fall back to detail/raw
-    // text/status so a clean message always surfaces (never raw JSON).
-    const raw = await res.text();
-    let message = raw || res.statusText;
+// Friendly fallbacks for failures that aren't our JSON error envelope — e.g. an
+// HTML error page from the host (a Render 502 while the backend is asleep) or an
+// empty body. Keyed by status so raw markup never reaches the UI.
+const STATUS_MESSAGE: Record<number, string> = {
+  502: "The server is unavailable right now — it may be waking up. Please try again in a minute.",
+  503: "The server is temporarily unavailable. Please try again shortly.",
+  504: "The server took too long to respond. Please try again.",
+};
+
+function fallbackMessage(status: number, statusText: string): string {
+  return (
+    STATUS_MESSAGE[status] ??
+    `Request failed (${status || "network error"}${statusText ? ` ${statusText}` : ""}).`
+  );
+}
+
+async function errorMessage(res: Response): Promise<string> {
+  const raw = (await res.text().catch(() => "")).trim();
+  // Only trust our own {"error","code"} JSON envelope. An HTML page (starts with
+  // "<") or a non-JSON body falls through to a clean status message.
+  if (raw && !raw.startsWith("<")) {
     try {
       const body = JSON.parse(raw);
-      message = body.error || body.message || body.detail || message;
+      const msg = body.error ?? body.message ?? body.detail;
+      if (msg) return String(msg);
     } catch {
-      /* not JSON — keep the raw text */
+      /* not JSON — use the status fallback below */
     }
-    throw new Error(message);
   }
-  return res.json() as Promise<T>;
+  return fallbackMessage(res.status, res.statusText);
+}
+
+async function asJson<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    throw new Error(await errorMessage(res));
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    // A 2xx that isn't JSON (e.g. an HTML page slipped through the proxy).
+    throw new Error(fallbackMessage(res.status || 502, res.statusText));
+  }
 }
 
 export const api = {
