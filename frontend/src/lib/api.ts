@@ -1,4 +1,4 @@
-import type { ClaimInput, ClaimsPage, Decision, Explanation, PolicyDoc } from "./types";
+import type { ClaimInput, ClaimsPage, Decision, ExtractedDocument, Explanation, PolicyDoc } from "./types";
 
 // Default: call our own origin and let the Next.js proxy (app/api/[...path])
 // forward to the backend at runtime — no CORS, no build-time backend URL.
@@ -60,6 +60,12 @@ export const api = {
 
   submitUpload: (form: FormData) =>
     fetch(`${BASE}/api/claims`, { method: "POST", body: form }).then((r) => asJson<Decision>(r)),
+
+  // OCR + extraction preview for the review screen — no decision, no persistence.
+  extractDocuments: (form: FormData) =>
+    fetch(`${BASE}/api/claims/extract`, { method: "POST", body: form }).then((r) =>
+      asJson<ExtractedDocument>(r),
+    ),
 
   listClaims: (
     opts: { limit?: number; offset?: number; status?: string; sort?: string; order?: string } = {},

@@ -21,8 +21,9 @@ from .llm import llm_available, model_name
 from .db import get_db, init_db
 from .errors import install_error_handlers
 from .explain import Explanation, explain_decision
+from .extraction import ExtractedDocument, extract
 from .ingestion import (OcrStats, OcrUnavailable, ocr_available,
-                        ocr_document_detailed, tesseract_available)
+                        ocr_document, ocr_document_detailed, tesseract_available)
 from .models import ClaimInput, Decision
 from .vision import vision_available
 from .policy import load_policy, save_policy
@@ -80,7 +81,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("opd")
 log.setLevel(_cfg["log_level"])
-log.info("Backend starting — app_env=%s log_level=%s provider=%s",
+log.info("Backend starting - app_env=%s log_level=%s provider=%s",
          _cfg["app_env"], _cfg["log_level"], _cfg["provider"])
 
 
@@ -176,6 +177,29 @@ async def submit_documents(
         claim_amount=claim_amount, member_join_date=member_join_date, hospital=hospital,
         cashless_request=cashless_request, previous_claims_same_day=previous_claims_same_day)
     return await _orchestrate(db, metadata, doc_texts, needs_extraction=True, evidence=evidence)
+
+
+@app.post("/api/claims/extract", response_model=ExtractedDocument)
+async def extract_documents(
+    prescription: UploadFile | None = File(None),
+    bill: UploadFile | None = File(None),
+) -> ExtractedDocument:
+    """OCR + LLM extraction only — lets the pre-submit review show what the engine
+    will read. No adjudication, no persistence."""
+    texts: list[str] = []
+    try:
+        for upload in (prescription, bill):
+            if upload is not None:
+                texts.append(ocr_document(upload.filename, await upload.read()))
+    except OcrUnavailable:
+        raise HTTPException(status_code=503, detail={
+            "code": "OCR_UNAVAILABLE",
+            "message": "Document scanning (OCR) is unavailable on this server.",
+        })
+    if not texts:
+        raise HTTPException(status_code=422, detail={
+            "code": "NO_DOCUMENTS", "message": "Attach a document to read."})
+    return extract("\n\n".join(texts))
 
 
 @app.get("/api/claims/{claim_id}", response_model=Decision)

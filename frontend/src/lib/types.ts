@@ -23,6 +23,38 @@ export interface ClaimInput {
   bill?: Record<string, number | string | string[]>;
 }
 
+export interface ExtractedLineItem {
+  name: string;
+  amount: number;
+}
+
+/** What the OCR + LLM extraction reads from the documents (engine input preview). */
+export interface ExtractedDocument {
+  doctor_name: string | null;
+  doctor_reg: string | null;
+  diagnosis: string | null;
+  treatment: string | null;
+  medicines: string[];
+  procedures: string[];
+  tests: string[];
+  line_items: ExtractedLineItem[];
+}
+
+/** Form metadata entered for an upload claim. */
+export interface ReviewMeta {
+  memberId: string;
+  name: string;
+  date: string;
+  amount: string;
+}
+
+/** Everything the pre-submit review needs: entered metadata + the attached files. */
+export interface ReviewPayload {
+  meta: ReviewMeta;
+  prescription: File;
+  bill: File | null;
+}
+
 export interface AuditEntry {
   step: string;
   rule: string;

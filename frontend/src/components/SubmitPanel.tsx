@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { ClaimInput } from "@/lib/types";
+import type { ClaimInput, ReviewPayload } from "@/lib/types";
 import { SAMPLES } from "@/lib/samples";
 import { FileText, Sparkles, Upload } from "./icons";
-import { UploadReview } from "./UploadReview";
 
 type Mode = "sample" | "upload";
 
@@ -15,11 +14,11 @@ const labelClass = "mb-1.5 block text-sm font-medium text-ink";
 export function SubmitPanel({
   busy,
   onJson,
-  onUpload,
+  onReview,
 }: {
   busy: boolean;
   onJson: (claim: ClaimInput) => void;
-  onUpload: (form: FormData) => void;
+  onReview: (payload: ReviewPayload) => void;
 }) {
   const [mode, setMode] = useState<Mode>("sample");
   const [memberId, setMemberId] = useState("EMP001");
@@ -28,39 +27,13 @@ export function SubmitPanel({
   const [amount, setAmount] = useState("1500");
   const [rx, setRx] = useState<File | null>(null);
   const [bill, setBill] = useState<File | null>(null);
-  const [reviewing, setReviewing] = useState(false);
 
-  // Uploading is a two-step flow: submitting the form opens a review screen, and
-  // only confirming there actually sends the documents to the backend.
+  // Uploading is a two-step flow: submitting the form hands the entered data and
+  // files up to the page, which shows a full-width review before anything is sent.
   function submitUpload(e: React.FormEvent) {
     e.preventDefault();
     if (!rx) return;
-    setReviewing(true);
-  }
-
-  function confirmUpload() {
-    const form = new FormData();
-    form.append("member_id", memberId);
-    form.append("member_name", name || "Member");
-    form.append("treatment_date", date);
-    form.append("claim_amount", amount);
-    if (rx) form.append("prescription", rx);
-    if (bill) form.append("bill", bill);
-    setReviewing(false);
-    onUpload(form);
-  }
-
-  if (reviewing && mode === "upload" && rx) {
-    return (
-      <UploadReview
-        data={{ memberId, name, date, amount }}
-        prescription={rx}
-        bill={bill}
-        busy={busy}
-        onBack={() => setReviewing(false)}
-        onConfirm={confirmUpload}
-      />
-    );
+    onReview({ meta: { memberId, name, date, amount }, prescription: rx, bill });
   }
 
   return (
