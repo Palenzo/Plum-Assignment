@@ -1,4 +1,12 @@
-import type { ClaimInput, ClaimsPage, Decision, ExtractedDocument, Explanation, PolicyDoc } from "./types";
+import type {
+  BackendStatus,
+  ClaimInput,
+  ClaimsPage,
+  Decision,
+  ExtractedDocument,
+  Explanation,
+  PolicyDoc,
+} from "./types";
 
 // Default: call our own origin and let the Next.js proxy (app/api/[...path])
 // forward to the backend at runtime — no CORS, no build-time backend URL.
@@ -51,6 +59,9 @@ async function asJson<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  // Lightweight readiness probe — also doubles as the cold-start warm-up.
+  status: () => fetch(`${BASE}/api/status`, { cache: "no-store" }).then((r) => asJson<BackendStatus>(r)),
+
   submitJson: (payload: ClaimInput) =>
     fetch(`${BASE}/api/claims/json`, {
       method: "POST",

@@ -23,6 +23,17 @@ export interface ClaimInput {
   bill?: Record<string, number | string | string[]>;
 }
 
+/** Backend capability/health report from GET /api/status. */
+export interface BackendStatus {
+  status: string;
+  ai_available: boolean;
+  ocr_available: boolean;
+  ocr_engine: string | null;
+  temporal_enabled: boolean;
+  provider: string;
+  model: string;
+}
+
 export interface ExtractedLineItem {
   name: string;
   amount: number;
