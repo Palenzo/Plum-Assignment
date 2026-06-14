@@ -50,8 +50,10 @@ services:
       # Read at runtime by the API proxy (no CORS, no build-time baking).
       # Explicit full URL: `fromService property: host` returns a bare hostname
       # that resolves to an unreachable internal address, which surfaced as 502s.
+      # NOTE: Render appended a random suffix to the service ("-xfjn"), so the
+      # real host is plum-opd-backend-xfjn, not plum-opd-backend.
       - key: BACKEND_URL
-        value: https://plum-opd-backend.onrender.com
+        value: https://plum-opd-backend-xfjn.onrender.com
       # Logging mode. Production keeps [proxy] logs quiet; to debug a deploy set
       # PROXY_DEBUG=true in the dashboard for verbose per-request proxy logs.
       - key: APP_ENV
