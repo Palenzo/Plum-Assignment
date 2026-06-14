@@ -9,6 +9,7 @@ and never changes amounts — so the engine stays the auditable source of truth.
 from __future__ import annotations
 
 import os
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,18 +19,27 @@ from .models import ClaimInput, Decision
 
 _NECESSITY = (
     "You assess medical necessity: does the diagnosis reasonably justify the "
-    "treatment, procedures and medicines? Judge clinical appropriateness ONLY. "
-    "Ignore cost, fees and amounts entirely. Flag only clear clinical mismatches.")
+    "treatment, procedures and medicines? Judge clinical appropriateness ONLY; "
+    "ignore cost, fees and amounts. Set necessity_justified=false ONLY for a "
+    "clear, serious mismatch where the treatment plainly does not fit the "
+    "diagnosis. Routine and commonly co-prescribed care — supportive vitamins, "
+    "standard first-line medicines, and the usual tests for the stated symptoms "
+    "— IS justified. When in doubt, necessity_justified=true.")
 _FRAUD = (
     "You flag clinical fraud and anomaly patterns: treatment inconsistent with "
-    "the diagnosis, implausible or impossible combinations, signs of misuse. "
-    "Ignore cost and pricing — amounts and limits are checked elsewhere. Flag "
-    "only clear concerns.")
+    "the diagnosis, impossible combinations, clear signs of fabrication or "
+    "misuse. Ignore cost and pricing — amounts and limits are checked elsewhere. "
+    "Set fraud_concern=true ONLY for a clear, strong anomaly, NOT for routine "
+    "clinical choices or speculative 'might be unnecessary' observations. When "
+    "in doubt, fraud_concern=false.")
 _LEADER = (
     "Combine the two reviews into one assessment about CLINICAL appropriateness "
-    "and fraud only. NEVER flag a claim for cost, fees or amount — those are "
-    "checked separately by deterministic rules. Be conservative; when in doubt, "
-    "do not flag.")
+    "and fraud only. NEVER flag a claim for cost, fees or amount — deterministic "
+    "rules handle those. Rate severity: use 'high' ONLY when the concern is "
+    "clear and serious enough that a human MUST review before any payout; minor, "
+    "routine or speculative concerns are 'low'. Be conservative — when in doubt, "
+    "raise no concern and set severity 'low'. Most ordinary claims have no "
+    "concern at all.")
 
 _ESCALATABLE = {"APPROVED", "PARTIAL"}
 
@@ -39,6 +49,10 @@ class ReviewAssessment(BaseModel):
     necessity_reason: str = ""
     fraud_concern: bool = False
     fraud_flags: list[str] = Field(default_factory=list)
+    # How serious the concern is. Only "high" pulls an otherwise-clean claim into
+    # manual review; lower severities are advisory and never escalate — this is
+    # what keeps routine claims auto-adjudicating.
+    severity: Literal["low", "medium", "high"] = "low"
     overall_confidence: float = 0.8
 
     @field_validator("fraud_flags", mode="before")
@@ -46,11 +60,19 @@ class ReviewAssessment(BaseModel):
     def _none_to_list(cls, value):
         return value or []
 
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _norm_severity(cls, value):
+        v = str(value or "low").strip().lower()
+        return v if v in {"low", "medium", "high"} else "low"
+
 
 def apply_review(decision: Decision, assessment: ReviewAssessment) -> Decision:
-    """Escalate an approved claim to a human when the team raises a concern."""
+    """Escalate an approved claim to a human ONLY for a clear, high-severity
+    concern. Lower-severity observations are advisory and leave the decision
+    untouched, so routine claims keep auto-adjudicating."""
     concern = (not assessment.necessity_justified) or assessment.fraud_concern
-    if decision.decision not in _ESCALATABLE or not concern:
+    if decision.decision not in _ESCALATABLE or not concern or assessment.severity != "high":
         return decision
 
     flags = list(decision.flags)
